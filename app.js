@@ -25,6 +25,7 @@ let contextCompactRuntime = null;
 let skillRuntime = null;
 let safetyRuntime = null;
 let orderingWorkflow = null;
+let dialogueStateRuntime = null;
 
 const fallbackUserProfile = {
   userId: "demo_user",
@@ -208,6 +209,20 @@ const appState = {
     source: "none",
     error: "",
     rawModelResult: null
+  },
+  dialogueState: {
+    act: "idle",
+    confidence: 0,
+    signals: [],
+    shouldInheritNeed: false,
+    inheritedNeed: [],
+    excludedRestaurantNames: [],
+    shortTermSummary: {}
+  },
+  constraintState: {
+    constraintSet: {},
+    restaurantValidation: { pass: true, issues: [] },
+    dishValidation: { pass: true, issues: [] }
   },
   pendingActions: [],
   safetyDecisions: [],
@@ -630,9 +645,19 @@ function renderStatePreview() {
       data: appState.llmIntentState
     },
     {
+      title: "DialogueState",
+      note: "短期对话状态与本轮动作",
+      data: appState.dialogueState
+    },
+    {
       title: "UserNeed",
       note: "用户需求",
       data: appState.userNeed
+    },
+    {
+      title: "ConstraintState",
+      note: "硬约束和推荐结果校验",
+      data: appState.constraintState
     },
     {
       title: "UserMemory",
@@ -900,14 +925,32 @@ async function handlePrompt(text) {
   const thinkingMessage = addThinkingMessage();
   if (hookRuntime) hookRuntime.beforeWorkflow({ userText: text });
 
-  const dishSelection = resolveDishSelection(text);
+  const dialogueTurnState = dialogueStateRuntime.analyzeTurn({
+    text,
+    state: appState,
+    restaurants
+  });
+  appState.dialogueState = dialogueTurnState;
+
+  const dishSelection = dialogueTurnState.selectedDish || resolveDishSelection(text);
   if (dishSelection) {
     await handleDishSelection(dishSelection, text, thinkingMessage);
     return;
   }
 
-  const contextualText = resolveContextualPrompt(text);
-  const alternativeRequest = buildAlternativeRestaurantRequest(text, contextualText);
+  const dialogueInput = dialogueStateRuntime.buildWorkflowInput({
+    text,
+    state: appState,
+    restaurants,
+    dialogueState: dialogueTurnState
+  });
+  const contextualText = dialogueInput.workflowText;
+  const alternativeRequest = dialogueTurnState.act === DialogueAct.REQUEST_ALTERNATIVES
+    ? {
+        excludedRestaurantNames: dialogueTurnState.excludedRestaurantNames,
+        workflowText: contextualText
+      }
+    : buildAlternativeRestaurantRequest(text, contextualText);
   const workflowText = alternativeRequest
     ? alternativeRequest.workflowText
     : resolveRestaurantSelection(contextualText);
@@ -960,6 +1003,7 @@ async function handlePrompt(text) {
   appState.planningResult = result.planningResult || null;
   appState.restaurantRecommendations = result.restaurantRecommendations || [];
   appState.dishRecommendations = result.dishRecommendations || [];
+  appState.constraintState = result.constraintAudit || appState.constraintState;
   if (appState.restaurantRecommendations.length) {
     appState.lastRestaurantRecommendations = appState.restaurantRecommendations.map(summarizeRestaurant);
     appState.seenRestaurantNames = mergeRestaurantNames(appState.seenRestaurantNames, appState.restaurantRecommendations);
@@ -1473,8 +1517,10 @@ function buildLLMReviewPayload(text, workflowResult, selectedSkills, contextualT
       },
       shortTermContext: {
         previousNeed: appState.userNeed,
+        dialogueState: appState.dialogueState,
         contextCompact: appState.contextCompactState
       },
+      constraintState: workflowResult.constraintAudit,
       llmIntentState: appState.llmIntentState,
       toolCalls: workflowResult.toolCalls
     }
@@ -1585,6 +1631,7 @@ async function loadData() {
   todoRuntime = createTodoRuntime();
   subagentRuntime = createSubagentRuntime();
   contextCompactRuntime = createContextCompactRuntime();
+  dialogueStateRuntime = createDialogueStateRuntime();
   appState.hookState = hookRuntime.getState();
   appState.contextCompactState = contextCompactRuntime.getState();
   toolRuntime = createToolRuntime({ restaurants, userProfile, ragRuntime, memoryRuntime, hookRuntime });
@@ -1657,6 +1704,20 @@ resetButton.addEventListener("click", () => {
     source: "none",
     error: "",
     rawModelResult: null
+  };
+  appState.dialogueState = {
+    act: "idle",
+    confidence: 0,
+    signals: [],
+    shouldInheritNeed: false,
+    inheritedNeed: [],
+    excludedRestaurantNames: [],
+    shortTermSummary: {}
+  };
+  appState.constraintState = {
+    constraintSet: {},
+    restaurantValidation: { pass: true, issues: [] },
+    dishValidation: { pass: true, issues: [] }
   };
   appState.pendingActions = [];
   appState.safetyDecisions = [];

@@ -163,6 +163,7 @@ function normalizeLLMIntentParse({ parsed, ruleIntent, userText }) {
     ...parsedSlots,
     rawText: userText || parsedSlots.rawText || ruleSlots.rawText || ""
   });
+  repairSlotsFromRawText(slots, userText || "");
   const modelMissingSlots = normalizeStringArray(parsed.missingSlots);
   const missingSlots = modelMissingSlots.length || safeIntent !== ruleIntent.intent
     ? modelMissingSlots
@@ -240,6 +241,24 @@ function normalizeSlots(slots) {
     quantity: normalizeNumberOrNull(slots.quantity),
     constraints: normalizeStringArray(slots.constraints)
   };
+}
+
+function repairSlotsFromRawText(slots, rawText) {
+  if (/清淡|少油|不油|低脂|轻食|暖胃/.test(rawText) && !slots.tasteGoals.includes("清淡")) {
+    slots.tasteGoals.push("清淡");
+  }
+  if (/重口|重口味|辣|麻辣|香辣|川菜|湘菜|烧烤|小龙虾/.test(rawText) && !/不辣|不要辣|别辣|不吃辣/.test(rawText)) {
+    if (!slots.tasteGoals.includes("辣")) slots.tasteGoals.push("辣");
+  }
+  if (/不辣|不要辣|别辣|不吃辣/.test(rawText) && !slots.avoidIngredients.includes("辣")) {
+    slots.avoidIngredients.push("辣");
+  }
+  if (/不吃牛肉|不要牛肉|别牛肉/.test(rawText) && !slots.avoidIngredients.includes("牛肉")) {
+    slots.avoidIngredients.push("牛肉");
+  }
+  if (/不吃香菜|不要香菜|别香菜/.test(rawText) && !slots.avoidIngredients.includes("香菜")) {
+    slots.avoidIngredients.push("香菜");
+  }
 }
 
 function normalizeStringArray(value) {

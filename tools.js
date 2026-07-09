@@ -1,5 +1,8 @@
 function createToolRuntime({ restaurants, userProfile, ragRuntime, memoryRuntime, hookRuntime = null }) {
   const toolCalls = [];
+  const constraintEngine = typeof createConstraintEngine === "function"
+    ? createConstraintEngine()
+    : null;
 
   function recordToolCall(name, input, output) {
     const call = {
@@ -44,6 +47,7 @@ function createToolRuntime({ restaurants, userProfile, ragRuntime, memoryRuntime
       }))
       .filter((restaurant) => restaurant.deliveryMinutes <= need.maxDeliveryMinutes + maxDeliveryBuffer)
       .filter((restaurant) => !isExcludedRestaurant(restaurant, need))
+      .filter((restaurant) => !constraintEngine || !constraintEngine.violatesRestaurantHardConstraints(restaurant, need).length)
       .sort((a, b) => {
         if (a.distanceKm !== b.distanceKm) return a.distanceKm - b.distanceKm;
         return b.monthlySales - a.monthlySales;
@@ -69,6 +73,7 @@ function createToolRuntime({ restaurants, userProfile, ragRuntime, memoryRuntime
     const eligible = getEligibleRestaurants(scored, need);
     const pool = getRestaurantPool({ scored, eligible, need });
     const ranked = pool
+      .filter((restaurant) => !constraintEngine || !constraintEngine.violatesRestaurantHardConstraints(restaurant, need).length)
       .sort((a, b) => b.score - a.score)
       .slice(0, 3);
 
@@ -134,7 +139,8 @@ function createToolRuntime({ restaurants, userProfile, ragRuntime, memoryRuntime
         score: scoreDish(restaurant, dish, need, memories),
         matchReasons: buildDishReasons(restaurant, dish, need, memories)
       }))
-      .filter((item) => item.dish.price <= need.budget + 15);
+      .filter((item) => item.dish.price <= need.budget + 15)
+      .filter((item) => !constraintEngine || !constraintEngine.violatesDishHardConstraints(item.dish, need).length);
     const safeByAvoid = need.avoidIngredients && need.avoidIngredients.length
       ? scored.filter((item) => !violatesAvoidDish(item.dish, need.avoidIngredients))
       : scored;
@@ -162,6 +168,26 @@ function createToolRuntime({ restaurants, userProfile, ragRuntime, memoryRuntime
       avoidIngredients: need.avoidIngredients
     }, ranked);
     return ranked;
+  }
+
+  function buildConstraintAudit({ need, restaurantRecommendations = [], dishRecommendations = [] }) {
+    const audit = constraintEngine
+      ? constraintEngine.buildAudit({ need, restaurantRecommendations, dishRecommendations })
+      : {
+          constraintSet: {},
+          restaurantValidation: { pass: true, issues: [] },
+          dishValidation: { pass: true, issues: [] }
+        };
+    recordToolCall("validate_constraints", {
+      rawText: need.rawText,
+      budget: need.budget,
+      maxDeliveryMinutes: need.maxDeliveryMinutes,
+      deliveryTimeStrict: need.deliveryTimeStrict,
+      tasteGoals: need.tasteGoals,
+      avoidIngredients: need.avoidIngredients,
+      excludedRestaurantNames: need.excludedRestaurantNames || []
+    }, audit);
+    return audit;
   }
 
   function scoreRestaurant(restaurant, need, memories) {
@@ -290,6 +316,7 @@ function createToolRuntime({ restaurants, userProfile, ragRuntime, memoryRuntime
 
   function getNeedTerms(need) {
     return [
+      need.rawText,
       ...need.tasteGoals,
       need.cuisine,
       need.healthGoal,
@@ -411,7 +438,7 @@ function createToolRuntime({ restaurants, userProfile, ragRuntime, memoryRuntime
       ...(dish.allergens || [])
     ].join(" ");
     return avoidIngredients.some((word) => {
-      if (word === "辣") return isHeavySpicyDish(dish) || /辣/.test(terms);
+      if (word === "辣") return isHeavySpicyDish(dish);
       return terms.includes(word);
     });
   }
@@ -440,6 +467,7 @@ function createToolRuntime({ restaurants, userProfile, ragRuntime, memoryRuntime
     retrieveFoodKnowledge,
     saveUserMemory,
     rankDishes,
+    buildConstraintAudit,
     resetTrace,
     getTrace
   };

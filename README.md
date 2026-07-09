@@ -7,6 +7,8 @@
 ## 当前能力
 
 - LLM 意图识别与规则校验兜底
+- Dialogue State：识别新需求、改条件、换一批、选店、选菜、问模型等多轮对话动作
+- Constraint Engine：把配送时间、忌口、清淡/重口、已看过餐厅变成推荐前硬校验
 - 槽位抽取：预算、配送时间、口味、忌口、人数、餐厅名、商品名
 - 短期上下文记忆：支持“还是重口味一些”“和刚才一样”等连续对话
 - 长期用户画像：保存基础信息、口味偏好、忌口、预算习惯
@@ -25,9 +27,13 @@
   ↓
 短期上下文继承
   ↓
+Dialogue State 判断本轮动作
+  ↓
 LLM 意图识别 + 规则校验
   ↓
 路由到 RAG / Tool / Workflow / Planning / Memory
+  ↓
+Constraint Engine 校验硬约束
   ↓
 工具返回结构化结果
   ↓
@@ -93,6 +99,7 @@ npm run check
 npm run eval
 npm run eval:free
 npm run eval:complex
+npm run eval:stability
 ```
 
 评测覆盖：
@@ -104,6 +111,7 @@ npm run eval:complex
 - 选店后的商品推荐
 - 模型身份问题
 - 改口、忌口、过敏、配送时间硬约束等复杂场景
+- 换一批、排除上一批、选店后换店、长期记忆不覆盖本轮 query
 
 ## 目录结构
 
@@ -114,6 +122,8 @@ npm run eval:complex
 ├── server.js               # 本地服务端和 LLM 代理
 ├── intent.js               # 规则版意图识别
 ├── llm-intent.js           # LLM 意图识别和结构化校验
+├── dialogue-state.js       # 多轮对话状态和本轮动作识别
+├── constraint-engine.js    # 推荐前硬约束校验
 ├── workflow.js             # 点餐 Workflow
 ├── tools.js                # 工具调用层
 ├── rag.js                  # 本地 RAG 检索
@@ -141,3 +151,4 @@ npm run eval:complex
 - [Agent 任务叙事](./docs/AGENT_STORY.md)
 - [S01-S10 能力盘查](./docs/S01_S10_AUDIT.md)
 - [LLM 意图识别说明](./docs/STEP19_LLM_INTENT.md)
+- [Agent 稳定性重构](./docs/STEP20_AGENT_STABILITY.md)

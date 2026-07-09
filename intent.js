@@ -282,6 +282,10 @@ function extractRestaurantName(query) {
     "热卤饭",
     "清和蒸菜馆",
     "蒸菜馆",
+    "番茄暖汤饭",
+    "元气鸡胸热餐",
+    "白粥小馆",
+    "清爽日式便当",
     "家常川味面馆",
     "川味面馆"
   ];
@@ -302,7 +306,11 @@ function extractDishName(query) {
     "十三香小龙虾饭",
     "鲜虾砂锅粥",
     "卤肉饭",
-    "红烧牛肉面"
+    "红烧牛肉面",
+    "番茄鸡肉汤饭",
+    "香草鸡胸杂粮饭",
+    "鸡丝白粥",
+    "照烧鸡便当"
   ];
   return knownDishes.find((name) => query.includes(name)) || "";
 }

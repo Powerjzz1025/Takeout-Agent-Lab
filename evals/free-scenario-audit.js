@@ -6,6 +6,7 @@ const rootDir = path.join(__dirname, "..");
 const sourceFiles = [
   "data-models.js",
   "intent.js",
+  "constraint-engine.js",
   "rag.js",
   "memory.js",
   "permissions.js",

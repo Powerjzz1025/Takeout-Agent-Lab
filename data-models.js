@@ -60,6 +60,19 @@ const TakeoutDataModel = {
     recentTurns: "保留的最近若干轮上下文",
     maxRecentTurns: "压缩前最多保留的轮数"
   },
+  dialogueState: {
+    act: "本轮对话动作：new_order_request | refine_constraints | request_alternatives | select_restaurant | select_dish 等",
+    confidence: "0-1，对话动作识别置信度",
+    signals: "命中的判断信号",
+    inheritedNeed: "从上一轮继承的预算、配送时间、口味、忌口等短期上下文",
+    excludedRestaurantNames: "本轮需要排除的餐厅，通常来自已看过或用户拒绝的候选",
+    shortTermSummary: "上一轮需求、已看过餐厅、当前选店和选品摘要"
+  },
+  constraintState: {
+    constraintSet: "硬约束和软偏好的结构化集合",
+    restaurantValidation: "餐厅推荐结果是否违反硬约束",
+    dishValidation: "商品推荐结果是否违反硬约束"
+  },
   skillState: {
     availableSkills: "当前 Agent 可用的 Skills",
     selectedSkills: "本轮根据意图和任务阶段加载的 Skills"
@@ -154,6 +167,16 @@ const TakeoutDataModel = {
 };
 
 const ToolContracts = [
+  {
+    name: "validate_constraints",
+    purpose: "在推荐结果展示前校验配送时间、忌口、口味方向和排除餐厅等硬约束",
+    realProvider: "后续可升级为独立推荐安全层或策略引擎",
+    inputSchema: {
+      need: "UserNeed",
+      restaurantRecommendations: "Restaurant[]",
+      dishRecommendations: "DishRecommendation[]"
+    }
+  },
   {
     name: "evaluate_permissions",
     purpose: "根据本轮路由和待确认动作判断哪些能力允许、阻断或需要用户批准",

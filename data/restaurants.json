@@ -781,5 +781,305 @@
         "spicyLevel": 0
       }
     ]
+  },
+  {
+    "id": "r010",
+    "name": "番茄暖汤饭",
+    "category": "热汤简餐",
+    "description": "主打番茄汤底、鸡肉和豆腐类热餐，口味温和，适合清淡、暖胃和快速午餐。",
+    "deliveryMinutes": 20,
+    "deliveryFee": 3,
+    "rating": 4.7,
+    "monthlySales": 4630,
+    "distanceKm": 1.1,
+    "coreItems": ["番茄鸡肉汤饭", "菌菇豆腐汤饭", "玉米鸡丝粥"],
+    "tags": ["清淡", "热食", "暖胃", "少油", "工作餐"],
+    "dishes": [
+      {
+        "id": "d901",
+        "name": "番茄鸡肉汤饭",
+        "price": 31,
+        "spec": "单人份，鸡肉 120g + 米饭",
+        "monthlySales": 1840,
+        "description": "番茄汤底酸甜温和，鸡肉补充蛋白，整体少油不辣。",
+        "taste": ["清淡", "酸甜"],
+        "tags": ["热汤", "鸡肉", "少油", "高蛋白"],
+        "allergens": [],
+        "spicyLevel": 0
+      },
+      {
+        "id": "d902",
+        "name": "菌菇豆腐汤饭",
+        "price": 27,
+        "spec": "单人份 430g",
+        "monthlySales": 1320,
+        "description": "菌菇和豆腐搭配，口味清淡，适合想吃轻负担热餐。",
+        "taste": ["清淡", "咸鲜"],
+        "tags": ["热汤", "豆腐", "素食", "少油"],
+        "allergens": ["大豆"],
+        "spicyLevel": 0
+      },
+      {
+        "id": "d903",
+        "name": "玉米鸡丝粥",
+        "price": 24,
+        "spec": "单人份 480g",
+        "monthlySales": 1080,
+        "description": "鸡丝和玉米粥，热乎清淡，适合早餐或胃不舒服时选择。",
+        "taste": ["清淡", "微甜"],
+        "tags": ["粥", "热食", "暖胃", "鸡肉"],
+        "allergens": [],
+        "spicyLevel": 0
+      },
+      {
+        "id": "d904",
+        "name": "青菜鱼片汤饭",
+        "price": 36,
+        "spec": "单人份，鱼片 110g",
+        "monthlySales": 920,
+        "description": "青菜和鱼片搭配，汤底清爽，适合高蛋白清淡需求。",
+        "taste": ["清淡", "鲜香"],
+        "tags": ["热汤", "鱼类", "高蛋白", "少油"],
+        "allergens": ["鱼类"],
+        "spicyLevel": 0
+      },
+      {
+        "id": "d905",
+        "name": "番茄鸡蛋汤面",
+        "price": 26,
+        "spec": "单人份 420g",
+        "monthlySales": 1160,
+        "description": "番茄鸡蛋汤面，价格友好，口味温和。",
+        "taste": ["清淡", "酸甜"],
+        "tags": ["热汤", "面", "性价比"],
+        "allergens": ["蛋", "小麦"],
+        "spicyLevel": 0
+      }
+    ]
+  },
+  {
+    "id": "r011",
+    "name": "元气鸡胸热餐",
+    "category": "高蛋白简餐",
+    "description": "主打鸡胸、鸡腿和杂粮饭，适合高蛋白、少油、不吃牛肉或不吃辣的用户。",
+    "deliveryMinutes": 19,
+    "deliveryFee": 3,
+    "rating": 4.7,
+    "monthlySales": 5320,
+    "distanceKm": 1.3,
+    "coreItems": ["香草鸡胸杂粮饭", "低脂鸡腿饭", "南瓜鸡肉藜麦碗"],
+    "tags": ["高蛋白", "低脂", "少油", "清淡", "工作餐"],
+    "dishes": [
+      {
+        "id": "d1001",
+        "name": "香草鸡胸杂粮饭",
+        "price": 35,
+        "spec": "单人份，鸡胸 150g + 杂粮饭",
+        "monthlySales": 2260,
+        "description": "鸡胸肉搭配杂粮饭和蔬菜，不辣少油，适合健身工作餐。",
+        "taste": ["清淡", "咸鲜"],
+        "tags": ["鸡肉", "高蛋白", "低脂", "少油"],
+        "allergens": [],
+        "spicyLevel": 0
+      },
+      {
+        "id": "d1002",
+        "name": "低脂鸡腿饭",
+        "price": 33,
+        "spec": "单人份，去皮鸡腿 140g",
+        "monthlySales": 1740,
+        "description": "去皮鸡腿搭配时蔬，热餐不辣，饱腹感稳定。",
+        "taste": ["清淡", "咸鲜"],
+        "tags": ["鸡肉", "热餐", "高蛋白"],
+        "allergens": [],
+        "spicyLevel": 0
+      },
+      {
+        "id": "d1003",
+        "name": "南瓜鸡肉藜麦碗",
+        "price": 38,
+        "spec": "单人份 430g",
+        "monthlySales": 1210,
+        "description": "南瓜、鸡肉和藜麦搭配，口味温和，适合控制油脂。",
+        "taste": ["清淡", "微甜"],
+        "tags": ["鸡肉", "藜麦", "低脂", "饱腹"],
+        "allergens": [],
+        "spicyLevel": 0
+      },
+      {
+        "id": "d1004",
+        "name": "鸡丝蔬菜汤",
+        "price": 25,
+        "spec": "汤 500ml",
+        "monthlySales": 980,
+        "description": "鸡丝和蔬菜汤，热乎少油，适合想吃轻一点的时候。",
+        "taste": ["清淡", "咸鲜"],
+        "tags": ["热汤", "鸡肉", "少油"],
+        "allergens": [],
+        "spicyLevel": 0
+      },
+      {
+        "id": "d1005",
+        "name": "鸡胸玉米沙拉热配",
+        "price": 32,
+        "spec": "单人份，鸡胸 120g",
+        "monthlySales": 860,
+        "description": "鸡胸、玉米和温蔬搭配，偏轻食但不是冷餐。",
+        "taste": ["清爽", "咸鲜"],
+        "tags": ["鸡肉", "轻食", "高蛋白", "低脂"],
+        "allergens": [],
+        "spicyLevel": 0
+      }
+    ]
+  },
+  {
+    "id": "r012",
+    "name": "白粥小馆",
+    "category": "粥粉面",
+    "description": "主打白粥、鸡丝粥和小份蒸点，价格友好，适合早餐、夜宵和胃口不佳时选择。",
+    "deliveryMinutes": 17,
+    "deliveryFee": 2,
+    "rating": 4.5,
+    "monthlySales": 3560,
+    "distanceKm": 0.9,
+    "coreItems": ["鸡丝白粥", "南瓜小米粥", "鲜肉小笼"],
+    "tags": ["粥", "清淡", "热食", "暖胃", "性价比"],
+    "dishes": [
+      {
+        "id": "d1101",
+        "name": "鸡丝白粥",
+        "price": 18,
+        "spec": "单人份 480g",
+        "monthlySales": 1640,
+        "description": "白粥加鸡丝，热乎清淡，适合早餐或低预算夜宵。",
+        "taste": ["清淡", "咸鲜"],
+        "tags": ["粥", "鸡肉", "热食", "性价比"],
+        "allergens": [],
+        "spicyLevel": 0
+      },
+      {
+        "id": "d1102",
+        "name": "南瓜小米粥",
+        "price": 16,
+        "spec": "单人份 450g",
+        "monthlySales": 1380,
+        "description": "南瓜和小米粥，口味温和，适合暖胃需求。",
+        "taste": ["清淡", "微甜"],
+        "tags": ["粥", "暖胃", "热食", "素食"],
+        "allergens": [],
+        "spicyLevel": 0
+      },
+      {
+        "id": "d1103",
+        "name": "鲜肉小笼配粥",
+        "price": 24,
+        "spec": "小笼 6 个 + 白粥",
+        "monthlySales": 1120,
+        "description": "小笼和白粥搭配，价格友好，适合想吃热乎饱腹。",
+        "taste": ["咸鲜"],
+        "tags": ["早餐", "热食", "饱腹"],
+        "allergens": ["小麦"],
+        "spicyLevel": 0
+      },
+      {
+        "id": "d1104",
+        "name": "山药瘦肉粥",
+        "price": 22,
+        "spec": "单人份 480g",
+        "monthlySales": 980,
+        "description": "山药和瘦肉粥，清淡暖胃，适合午餐想吃轻一点。",
+        "taste": ["清淡", "咸鲜"],
+        "tags": ["粥", "暖胃", "少油"],
+        "allergens": [],
+        "spicyLevel": 0
+      },
+      {
+        "id": "d1105",
+        "name": "青菜鸡蛋面",
+        "price": 21,
+        "spec": "单人份 400g",
+        "monthlySales": 790,
+        "description": "青菜鸡蛋汤面，热乎温和，适合预算有限时选择。",
+        "taste": ["清淡", "咸鲜"],
+        "tags": ["面", "热汤", "性价比"],
+        "allergens": ["蛋", "小麦"],
+        "spicyLevel": 0
+      }
+    ]
+  },
+  {
+    "id": "r013",
+    "name": "清爽日式便当",
+    "category": "日式便当",
+    "description": "主打照烧鸡、鳕鱼和温蔬便当，口味偏清爽，适合不想吃辣但需要饱腹的工作餐。",
+    "deliveryMinutes": 23,
+    "deliveryFee": 4,
+    "rating": 4.6,
+    "monthlySales": 4210,
+    "distanceKm": 1.7,
+    "coreItems": ["照烧鸡便当", "鳕鱼温蔬便当", "玉子豆腐饭"],
+    "tags": ["清淡", "便当", "少油", "工作餐", "热餐"],
+    "dishes": [
+      {
+        "id": "d1201",
+        "name": "照烧鸡便当",
+        "price": 34,
+        "spec": "单人份，鸡肉 130g + 米饭",
+        "monthlySales": 1880,
+        "description": "照烧鸡搭配温蔬，酱汁不过甜，适合清爽工作餐。",
+        "taste": ["咸鲜", "微甜"],
+        "tags": ["鸡肉", "便当", "热餐"],
+        "allergens": [],
+        "spicyLevel": 0
+      },
+      {
+        "id": "d1202",
+        "name": "鳕鱼温蔬便当",
+        "price": 43,
+        "spec": "单人份，鳕鱼 140g",
+        "monthlySales": 1020,
+        "description": "鳕鱼和温蔬搭配，少油不辣，适合高蛋白清淡需求。",
+        "taste": ["清淡", "鲜香"],
+        "tags": ["鱼类", "高蛋白", "少油"],
+        "allergens": ["鱼类"],
+        "spicyLevel": 0
+      },
+      {
+        "id": "d1203",
+        "name": "玉子豆腐饭",
+        "price": 28,
+        "spec": "单人份 390g",
+        "monthlySales": 940,
+        "description": "玉子和豆腐搭配，口味温和，适合不想吃重口时选择。",
+        "taste": ["清淡", "咸鲜"],
+        "tags": ["豆腐", "便当", "少油"],
+        "allergens": ["蛋", "大豆"],
+        "spicyLevel": 0
+      },
+      {
+        "id": "d1204",
+        "name": "鸡肉味噌汤饭",
+        "price": 31,
+        "spec": "汤饭 430g",
+        "monthlySales": 850,
+        "description": "味噌汤底配鸡肉，热乎清爽，适合午餐。",
+        "taste": ["咸鲜"],
+        "tags": ["鸡肉", "热汤", "便当"],
+        "allergens": ["大豆"],
+        "spicyLevel": 0
+      },
+      {
+        "id": "d1205",
+        "name": "温蔬鸡蛋饭",
+        "price": 26,
+        "spec": "单人份 380g",
+        "monthlySales": 760,
+        "description": "温蔬和鸡蛋搭配，价格友好，适合轻负担午餐。",
+        "taste": ["清淡", "咸鲜"],
+        "tags": ["温蔬", "少油", "性价比"],
+        "allergens": ["蛋"],
+        "spicyLevel": 0
+      }
+    ]
   }
 ]

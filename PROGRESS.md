@@ -236,3 +236,19 @@
 - 覆盖标准推荐、记忆写入、RAG、复杂规划、菜单查询
 - 当前 6 个评测用例全部通过
 - 新增 `docs/STEP12_EVALS.md`
+
+## Step 20 完成标准
+
+- 新增 `dialogue-state.js`
+- 新增 `constraint-engine.js`
+- 页面右侧新增 `DialogueState` 和 `ConstraintState`
+- Mock 餐厅库从 9 家扩展到 13 家，并补齐清淡、热食、高蛋白、严格 20 分钟等基础场景
+- `workflow.js` 输出 `constraintAudit`，推荐结果展示前先经过硬约束校验
+- `tools.js` 不再把长期用户画像口味当成本轮硬约束
+- 支持排除已看过餐厅，避免“还有没有其他”时重复推荐上一批
+- 新增 `evals/stability-matrix.js`
+- `npm run eval:stability` 通过：6/6
+- `npm run eval` 通过：6/6
+- `npm run eval:free` 通过：19 pass，1 warn，0 fail
+- `npm run eval:complex` 通过：14 pass，3 warn，0 fail
+- 新增 `docs/STEP20_AGENT_STABILITY.md`

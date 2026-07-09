@@ -10,7 +10,7 @@ function createOrderingWorkflow({ toolRuntime, userProfile, intentRouter, planni
       budget: slots.budget || 45,
       maxDeliveryMinutes: slots.maxDeliveryMinutes || 35,
       deliveryTimeStrict: isStrictDeliveryTime(slots.rawText),
-      tasteGoals: slots.tasteGoals.length ? slots.tasteGoals : inferTasteGoalsFromProfile(slots),
+      tasteGoals: slots.tasteGoals || [],
       avoidIngredients: slots.avoidIngredients,
       mealContext: slots.mealContext,
       peopleCount: slots.peopleCount,
@@ -102,6 +102,11 @@ function createOrderingWorkflow({ toolRuntime, userProfile, intentRouter, planni
       candidateRestaurants,
       memories: memoryResult.memories
     });
+    const constraintAudit = toolRuntime.buildConstraintAudit({
+      need,
+      restaurantRecommendations,
+      dishRecommendations: []
+    });
     const status = restaurantRecommendations.length ? "restaurants_ready" : "no_match";
     const workflowState = buildWorkflowState({
       status,
@@ -119,6 +124,7 @@ function createOrderingWorkflow({ toolRuntime, userProfile, intentRouter, planni
       knowledgeResult,
       restaurantRecommendations,
       dishRecommendations: [],
+      constraintAudit,
       workflowState,
       reply: restaurantRecommendations.length
         ? "已生成 3 家候选餐厅，等待大模型中枢整合后回复。"
@@ -132,6 +138,11 @@ function createOrderingWorkflow({ toolRuntime, userProfile, intentRouter, planni
       assumptions.push("识别到多人/口味冲突：有人想吃重口或川湘方向，同时存在不吃辣约束，后续需要用户确认优先级。");
     }
     const planningResult = planningRuntime.planComplexOrder({ intentResult, need });
+    const constraintAudit = toolRuntime.buildConstraintAudit({
+      need,
+      restaurantRecommendations: planningResult.restaurantCandidates,
+      dishRecommendations: []
+    });
     const status = planningResult.restaurantCandidates.length ? "restaurants_ready" : "no_match";
     const workflowState = buildWorkflowState({
       status,
@@ -149,6 +160,7 @@ function createOrderingWorkflow({ toolRuntime, userProfile, intentRouter, planni
       knowledgeResult: { results: [], answer: "" },
       restaurantRecommendations: planningResult.restaurantCandidates,
       dishRecommendations: [],
+      constraintAudit,
       planningResult,
       workflowState,
       reply: planningResult.restaurantCandidates.length
@@ -170,6 +182,11 @@ function createOrderingWorkflow({ toolRuntime, userProfile, intentRouter, planni
     const dishRecommendations = restaurant
       ? toolRuntime.rankDishes({ need, restaurant, memories: memoryResult.memories })
       : [];
+    const constraintAudit = toolRuntime.buildConstraintAudit({
+      need,
+      restaurantRecommendations: [],
+      dishRecommendations
+    });
     const status = dishRecommendations.length ? "dishes_ready" : "no_match";
     const workflowState = buildWorkflowState({
       status,
@@ -187,6 +204,7 @@ function createOrderingWorkflow({ toolRuntime, userProfile, intentRouter, planni
       knowledgeResult: { results: [], answer: "" },
       restaurantRecommendations: [],
       dishRecommendations,
+      constraintAudit,
       workflowState,
       reply: menu.dishes.length
         ? `已基于 ${menu.restaurantName} 的菜单生成 5 个候选商品，等待大模型中枢整合后回复。`
@@ -215,6 +233,11 @@ function createOrderingWorkflow({ toolRuntime, userProfile, intentRouter, planni
       knowledgeResult,
       restaurantRecommendations: [],
       dishRecommendations: [],
+      constraintAudit: toolRuntime.buildConstraintAudit({
+        need,
+        restaurantRecommendations: [],
+        dishRecommendations: []
+      }),
       workflowState,
       reply: "已检索到相关资料，等待大模型中枢整合后回复。"
     });
@@ -236,6 +259,11 @@ function createOrderingWorkflow({ toolRuntime, userProfile, intentRouter, planni
       knowledgeResult: { results: [], answer: "" },
       restaurantRecommendations: [],
       dishRecommendations: [],
+      constraintAudit: toolRuntime.buildConstraintAudit({
+        need,
+        restaurantRecommendations: [],
+        dishRecommendations: []
+      }),
       workflowState,
       reply: "该问题不需要调用点餐工具，等待大模型中枢直接回答。"
     });
@@ -266,19 +294,24 @@ function createOrderingWorkflow({ toolRuntime, userProfile, intentRouter, planni
       knowledgeResult: { results: [], answer: "" },
       restaurantRecommendations: [],
       dishRecommendations: [],
+      constraintAudit: toolRuntime.buildConstraintAudit({
+        need,
+        restaurantRecommendations: [],
+        dishRecommendations: []
+      }),
       workflowState,
       reply: "已生成待确认记忆，等待用户确认。"
     });
   }
 
-  function buildClarifyResult({ intentResult, need, assumptions = [] }) {
+  function buildClarifyResult({ intentResult, need, assumptions = [], clarificationQuestion = "" }) {
     const workflowState = buildWorkflowState({
       status: "needs_clarification",
       currentStep: "route",
       need,
       intentResult,
       assumptions,
-      clarificationQuestion: intentResult.clarificationQuestion || "你想让我推荐餐厅、看某家店的商品，还是查询饮食建议？"
+      clarificationQuestion: clarificationQuestion || intentResult.clarificationQuestion || "你想让我推荐餐厅、看某家店的商品，还是查询饮食建议？"
     });
 
     return buildResult({
@@ -289,12 +322,17 @@ function createOrderingWorkflow({ toolRuntime, userProfile, intentRouter, planni
       knowledgeResult: { results: [], answer: "" },
       restaurantRecommendations: [],
       dishRecommendations: [],
+      constraintAudit: toolRuntime.buildConstraintAudit({
+        need,
+        restaurantRecommendations: [],
+        dishRecommendations: []
+      }),
       workflowState,
       reply: workflowState.clarificationQuestion
     });
   }
 
-  function buildResult({ status, intentResult, need, memories, knowledgeResult, restaurantRecommendations, dishRecommendations, planningResult = null, workflowState, reply }) {
+  function buildResult({ status, intentResult, need, memories, knowledgeResult, restaurantRecommendations, dishRecommendations, constraintAudit = null, planningResult = null, workflowState, reply }) {
     return {
       status,
       intentResult,
@@ -304,22 +342,13 @@ function createOrderingWorkflow({ toolRuntime, userProfile, intentRouter, planni
       knowledgeAnswer: knowledgeResult.answer || "",
       restaurantRecommendations,
       dishRecommendations,
+      constraintAudit,
       recommendations: dishRecommendations,
       planningResult,
       toolCalls: toolRuntime.getTrace(),
       workflowState,
       reply
     };
-  }
-
-  function inferTasteGoalsFromProfile(slots = {}) {
-    if (slots.avoidIngredients && slots.avoidIngredients.includes("辣")) {
-      return [];
-    }
-    const tastes = userProfile.preferenceSummary && userProfile.preferenceSummary.favoriteTaste
-      ? userProfile.preferenceSummary.favoriteTaste
-      : [];
-    return tastes.slice(0, 2);
   }
 
   function isCompleteStatus(status) {
@@ -336,7 +365,7 @@ function createOrderingWorkflow({ toolRuntime, userProfile, intentRouter, planni
   }
 
   function isStrictDeliveryTime(text = "") {
-    return /严格|必须|务必|一定|不能超过|不超过|别超过|最多|至多|以内|以下/.test(text);
+    return /严格|必须|务必|一定|硬性|不能超过|不超过|别超过|最多|至多|以内|以下/.test(text);
   }
 
   return { run };
