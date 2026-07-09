@@ -18,6 +18,7 @@ function createOrderingWorkflow({ toolRuntime, userProfile, intentRouter, planni
       healthGoal: slots.healthGoal,
       knowledgeTopic: slots.knowledgeTopic,
       restaurantName: slots.restaurantName,
+      excludedRestaurantNames: slots.excludedRestaurantNames || [],
       confidence: intentResult.confidence,
       missingSlots
     };

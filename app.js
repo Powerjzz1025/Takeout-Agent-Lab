@@ -178,6 +178,7 @@ const appState = {
     deliveryTimeStrict: false,
     tasteGoals: [],
     avoidIngredients: [],
+    excludedRestaurantNames: [],
     mealContext: "",
     peopleCount: 1,
     confidence: 0,
@@ -212,6 +213,8 @@ const appState = {
   safetyDecisions: [],
   restaurantRecommendations: [],
   dishRecommendations: [],
+  lastRestaurantRecommendations: [],
+  seenRestaurantNames: [],
   selectedRestaurant: null,
   selectedDish: null,
   permissionState: {
@@ -699,7 +702,9 @@ function renderStatePreview() {
       note: "本轮会话短期选择",
       data: {
         selectedRestaurant: appState.selectedRestaurant,
-        selectedDish: appState.selectedDish
+        selectedDish: appState.selectedDish,
+        lastRestaurantRecommendations: appState.lastRestaurantRecommendations,
+        seenRestaurantNames: appState.seenRestaurantNames
       }
     },
     {
@@ -902,7 +907,10 @@ async function handlePrompt(text) {
   }
 
   const contextualText = resolveContextualPrompt(text);
-  const workflowText = resolveRestaurantSelection(contextualText);
+  const alternativeRequest = buildAlternativeRestaurantRequest(text, contextualText);
+  const workflowText = alternativeRequest
+    ? alternativeRequest.workflowText
+    : resolveRestaurantSelection(contextualText);
 
   renderSteps([
     "Intent：识别用户意图类别",
@@ -923,8 +931,11 @@ async function handlePrompt(text) {
     originalText: text,
     contextualText: workflowText
   });
+  const executableIntentResult = alternativeRequest
+    ? buildAlternativeRestaurantIntentResult(parsedIntentState.intentResult, alternativeRequest, workflowText)
+    : parsedIntentState.intentResult;
   const result = orderingWorkflow.run(workflowText, {
-    intentResult: parsedIntentState.intentResult
+    intentResult: executableIntentResult
   });
   if (hookRuntime) hookRuntime.afterWorkflow({ workflowResult: result });
   const selectedSkills = skillRuntime.selectSkills({
@@ -950,6 +961,8 @@ async function handlePrompt(text) {
   appState.restaurantRecommendations = result.restaurantRecommendations || [];
   appState.dishRecommendations = result.dishRecommendations || [];
   if (appState.restaurantRecommendations.length) {
+    appState.lastRestaurantRecommendations = appState.restaurantRecommendations.map(summarizeRestaurant);
+    appState.seenRestaurantNames = mergeRestaurantNames(appState.seenRestaurantNames, appState.restaurantRecommendations);
     appState.selectedRestaurant = null;
     appState.selectedDish = null;
   }
@@ -1250,6 +1263,118 @@ function buildPreviousNeedContext() {
   return [...new Set(parts)].join("，");
 }
 
+function buildAlternativeRestaurantRequest(text, contextualText) {
+  if (!isAlternativeRestaurantRequest(text)) return null;
+  const excludedRestaurantNames = getAlternativeExcludedRestaurantNames(text);
+  if (!excludedRestaurantNames.length) return null;
+  const previousNeed = buildPreviousNeedContext();
+  return {
+    excludedRestaurantNames,
+    workflowText: [
+      "请重新推荐餐厅，不要推荐已经展示过或用户明确排除的餐厅。",
+      previousNeed ? `延续上一轮需求：${previousNeed}。` : "",
+      `必须排除餐厅：${excludedRestaurantNames.join("、")}。`,
+      `原始用户表达：${contextualText || text}`
+    ].filter(Boolean).join("")
+  };
+}
+
+function isAlternativeRestaurantRequest(text) {
+  return /换一(家|批)|换个(店|餐厅)|还有没有(其他|别的)|还有(其他|别的).*(餐厅|推荐)|其他的?(餐厅|店|推荐)|别的(餐厅|店|推荐)|除了.*(刚才|刚刚|之前|推荐|三家|这几家)|不想要.*(餐厅|店|刚才|之前)|不要.*(餐厅|店|刚才|之前)/.test(text);
+}
+
+function getAlternativeExcludedRestaurantNames(text) {
+  const names = [];
+  const directMatches = getKnownRestaurantNames().filter((name) => text.includes(name));
+  names.push(...directMatches);
+
+  if (/刚才|刚刚|之前|上面|上一批|这几家|三家|推荐的/.test(text)) {
+    names.push(...appState.lastRestaurantRecommendations.map((restaurant) => restaurant.name));
+  }
+
+  if (/还有没有(其他|别的)|还有(其他|别的)|换一批|其他的?(餐厅|店|推荐)|别的(餐厅|店|推荐)/.test(text)) {
+    names.push(...appState.seenRestaurantNames);
+  }
+
+  if (/不想要|不要|不考虑|排除|换掉/.test(text) && appState.selectedRestaurant) {
+    names.push(appState.selectedRestaurant.name);
+  }
+
+  return [...new Set(names.filter(Boolean))];
+}
+
+function buildAlternativeRestaurantIntentResult(baseIntentResult, alternativeRequest, workflowText) {
+  const baseSlots = baseIntentResult && baseIntentResult.slots ? baseIntentResult.slots : {};
+  const previousNeed = appState.userNeed || {};
+  const tasteGoals = baseSlots.tasteGoals && baseSlots.tasteGoals.length
+    ? baseSlots.tasteGoals
+    : (previousNeed.tasteGoals || []);
+  const avoidIngredients = baseSlots.avoidIngredients && baseSlots.avoidIngredients.length
+    ? baseSlots.avoidIngredients
+    : (previousNeed.avoidIngredients || []);
+
+  return {
+    ...(baseIntentResult || {}),
+    intent: "order_recommendation",
+    label: "换一批餐厅推荐",
+    route: "workflow",
+    toolName: "",
+    confidence: Math.max(0.9, baseIntentResult && baseIntentResult.confidence ? baseIntentResult.confidence : 0.9),
+    matchedSignals: [
+      ...((baseIntentResult && baseIntentResult.matchedSignals) || []),
+      "识别到用户想排除上一批餐厅并查看其他候选"
+    ],
+    slots: {
+      ...baseSlots,
+      rawText: workflowText,
+      mealGoal: true,
+      budget: baseSlots.budget || previousNeed.budget || null,
+      maxDeliveryMinutes: baseSlots.maxDeliveryMinutes || previousNeed.maxDeliveryMinutes || null,
+      tasteGoals,
+      avoidIngredients,
+      peopleCount: baseSlots.peopleCount || previousNeed.peopleCount || 1,
+      mealContext: baseSlots.mealContext || previousNeed.mealContext || "工作餐",
+      cuisine: baseSlots.cuisine || previousNeed.cuisine || "",
+      restaurantName: "",
+      dishName: "",
+      searchKeyword: tasteGoals.join(" ") || "其他餐厅",
+      knowledgeTopic: "",
+      healthGoal: baseSlots.healthGoal || previousNeed.healthGoal || "",
+      memoryType: "",
+      memoryValue: "",
+      sensitivity: "normal",
+      quantity: null,
+      constraints: [
+        ...((baseSlots.constraints && baseSlots.constraints.length) ? baseSlots.constraints : []),
+        `排除餐厅：${alternativeRequest.excludedRestaurantNames.join("、")}`
+      ],
+      excludedRestaurantNames: alternativeRequest.excludedRestaurantNames
+    },
+    requiredSlots: ["mealGoal"],
+    missingSlots: [],
+    clarificationQuestion: "",
+    routeReason: "用户要求查看上一批推荐之外的其他餐厅，继续进入餐厅推荐 Workflow，并排除已展示候选。"
+  };
+}
+
+function getKnownRestaurantNames() {
+  const names = [
+    ...restaurants.map((restaurant) => restaurant.name),
+    ...appState.lastRestaurantRecommendations.map((restaurant) => restaurant.name),
+    ...appState.seenRestaurantNames
+  ];
+  return [...new Set(names.filter(Boolean))].sort((a, b) => b.length - a.length);
+}
+
+function mergeRestaurantNames(existingNames, restaurantList) {
+  return [
+    ...new Set([
+      ...(existingNames || []),
+      ...(restaurantList || []).map((restaurant) => restaurant.name).filter(Boolean)
+    ])
+  ];
+}
+
 async function requestLLMReview(text, workflowResult, selectedSkills, thinkingMessage, contextualText = text) {
   if (window.location.protocol === "file:") {
     appState.llmState = {
@@ -1502,6 +1627,7 @@ resetButton.addEventListener("click", () => {
     deliveryTimeStrict: false,
     tasteGoals: [],
     avoidIngredients: [],
+    excludedRestaurantNames: [],
     mealContext: "",
     peopleCount: 1,
     confidence: 0,
@@ -1536,6 +1662,8 @@ resetButton.addEventListener("click", () => {
   appState.safetyDecisions = [];
   appState.restaurantRecommendations = [];
   appState.dishRecommendations = [];
+  appState.lastRestaurantRecommendations = [];
+  appState.seenRestaurantNames = [];
   appState.selectedRestaurant = null;
   appState.selectedDish = null;
   if (hookRuntime) hookRuntime.reset();

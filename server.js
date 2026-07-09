@@ -494,7 +494,32 @@ function applyStructuredRecommendationReply(review, body) {
     };
   }
 
+  if (workflowStatus === "no_match" && state.need && state.need.excludedRestaurantNames && state.need.excludedRestaurantNames.length) {
+    return {
+      ...review,
+      improvedReply: buildAlternativeNoMatchReply(state),
+      nextBestAction: "ask_clarification"
+    };
+  }
+
   return review;
+}
+
+function buildAlternativeNoMatchReply(state) {
+  const need = state.need || {};
+  const excluded = need.excludedRestaurantNames || [];
+  const constraints = [];
+  if (need.maxDeliveryMinutes) constraints.push(`${need.maxDeliveryMinutes} 分钟内`);
+  if (need.budget) constraints.push(`预算 ${need.budget} 元左右`);
+  if (need.tasteGoals && need.tasteGoals.length) constraints.push(`口味 ${need.tasteGoals.join("、")}`);
+  if (need.avoidIngredients && need.avoidIngredients.length) constraints.push(`避开 ${need.avoidIngredients.join("、")}`);
+
+  return [
+    "暂时没有更多符合条件的餐厅",
+    `我已经排除了你刚才不想看的餐厅：${excluded.join("、")}。`,
+    `在当前 Mock 商家数据里，剩余餐厅没有同时满足${constraints.join("、") || "你的上一轮条件"}的候选。`,
+    "你可以放宽一个条件，比如配送时间、口味方向或预算，我再重新筛一批。"
+  ].join("\n");
 }
 
 function buildDishSelectionReply(selection, state) {

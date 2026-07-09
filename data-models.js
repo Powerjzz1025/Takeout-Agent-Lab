@@ -98,6 +98,7 @@ const TakeoutDataModel = {
     deliveryTimeStrict: "布尔值，是否把配送时间视为硬性约束",
     tasteGoals: "数组，想要的口味目标",
     avoidIngredients: "数组，忌口或不想吃的内容",
+    excludedRestaurantNames: "数组，本轮推荐需要排除的餐厅，例如上一批已展示餐厅",
     mealContext: "用餐场景，例如工作餐、夜宵、聚餐",
     peopleCount: "数字，用餐人数",
     confidence: "0-1，解析置信度",

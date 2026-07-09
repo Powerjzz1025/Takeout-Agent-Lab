@@ -126,6 +126,12 @@ const scenarios = [
     persona: "强配送时效约束用户",
     turns: ["我需要严格控制配送时间，必须是 20 分钟以内。清淡一点"],
     expect: { finalIntent: "order_recommendation", finalStatus: "restaurants_ready", maxDeliveryMinutes: 20, noHeavyForLight: true }
+  },
+  {
+    id: "c17_alternative_restaurants",
+    persona: "看过一批候选后想换一批的人",
+    turns: ["25 分钟内送到，清淡一点，预算 35 元左右", "我不想要刚才那三家，除了刚才推荐的以外，还有没有其他符合我需求的餐厅？"],
+    expect: { finalIntent: "order_recommendation", finalStatusIn: ["restaurants_ready", "no_match"], noOverlapWithFirstRestaurants: true, noHeavyForLight: true }
   }
 ];
 
@@ -152,6 +158,8 @@ function runScenario(scenario) {
   const state = {
     userNeed: null,
     restaurantRecommendations: [],
+    lastRestaurantRecommendations: [],
+    seenRestaurantNames: [],
     dishRecommendations: [],
     selectedRestaurant: null,
     selectedDish: null
@@ -163,7 +171,10 @@ function runScenario(scenario) {
 
   scenario.turns.forEach((turn) => {
     const resolved = resolveContextualTurn(turn, state);
-    const workflowResult = resolved.selectionResult || runtime.workflowRuntime.run(resolved.text);
+    const workflowResult = resolved.selectionResult || runtime.workflowRuntime.run(
+      resolved.text,
+      resolved.intentResult ? { intentResult: resolved.intentResult } : {}
+    );
     const pendingActions = runtime.safetyRuntime.buildPendingActions(workflowResult);
     finalPermission = runtime.permissionRuntime.evaluate({ workflowResult, pendingActions });
     finalSubagent = runtime.subagentRuntime.review({ workflowResult });
@@ -171,6 +182,10 @@ function runScenario(scenario) {
     turnResults.push(workflowResult);
     state.userNeed = workflowResult.need || state.userNeed;
     state.restaurantRecommendations = workflowResult.restaurantRecommendations || [];
+    if (workflowResult.restaurantRecommendations && workflowResult.restaurantRecommendations.length) {
+      state.lastRestaurantRecommendations = workflowResult.restaurantRecommendations;
+      state.seenRestaurantNames = mergeRestaurantNames(state.seenRestaurantNames, workflowResult.restaurantRecommendations);
+    }
     state.dishRecommendations = workflowResult.dishRecommendations || [];
     if (state.dishRecommendations.length) state.selectedRestaurant = state.dishRecommendations[0].restaurant;
     if (resolved.selectedDish) state.selectedDish = resolved.selectedDish.dish;
@@ -216,6 +231,9 @@ function createRuntime() {
 }
 
 function resolveContextualTurn(turn, state) {
+  const alternativeRequest = buildAlternativeRestaurantRequest(turn, state);
+  if (alternativeRequest) return alternativeRequest;
+
   if (isNewOrderIntent(turn)) {
     return { text: mergeContextForNewOrder(turn, state.userNeed) };
   }
@@ -258,6 +276,70 @@ function resolveContextualTurn(turn, state) {
   return {
     text: restaurantSelection || turn
   };
+}
+
+function buildAlternativeRestaurantRequest(turn, state) {
+  if (!/换一(家|批)|还有没有(其他|别的)|其他的?(餐厅|店|推荐)|别的(餐厅|店|推荐)|除了.*(刚才|刚刚|之前|推荐|三家|这几家)|不想要.*(刚才|之前|三家|餐厅|店)/.test(turn)) {
+    return null;
+  }
+  const excludedRestaurantNames = [
+    ...state.seenRestaurantNames,
+    ...state.lastRestaurantRecommendations.map((restaurant) => restaurant.name)
+  ].filter(Boolean);
+  if (!excludedRestaurantNames.length || !state.userNeed) return null;
+  const text = [
+    "请重新推荐餐厅，不要推荐已经展示过或用户明确排除的餐厅。",
+    `延续上一轮需求：${state.userNeed.rawText || ""}，预算 ${state.userNeed.budget || 45} 元左右，${state.userNeed.maxDeliveryMinutes || 35} 分钟内优先，口味 ${(state.userNeed.tasteGoals || []).join("、")}。`,
+    `必须排除餐厅：${[...new Set(excludedRestaurantNames)].join("、")}。`,
+    `原始用户表达：${turn}`
+  ].join("");
+
+  return {
+    text,
+    intentResult: {
+      intent: "order_recommendation",
+      label: "换一批餐厅推荐",
+      route: "workflow",
+      toolName: "",
+      confidence: 0.95,
+      matchedSignals: ["识别到用户要求排除上一批餐厅并查看其他候选"],
+      requiredSlots: ["mealGoal"],
+      missingSlots: [],
+      clarificationQuestion: "",
+      routeReason: "用户要求查看上一批推荐之外的其他餐厅。",
+      slots: {
+        rawText: text,
+        mealGoal: true,
+        budget: state.userNeed.budget || null,
+        maxDeliveryMinutes: state.userNeed.maxDeliveryMinutes || null,
+        tasteGoals: state.userNeed.tasteGoals || [],
+        avoidIngredients: state.userNeed.avoidIngredients || [],
+        peopleCount: state.userNeed.peopleCount || 1,
+        mealContext: state.userNeed.mealContext || "工作餐",
+        cuisine: state.userNeed.cuisine || "",
+        restaurantName: "",
+        dishName: "",
+        searchKeyword: (state.userNeed.tasteGoals || []).join(" ") || "其他餐厅",
+        knowledgeTopic: "",
+        healthGoal: state.userNeed.healthGoal || "",
+        memoryType: "",
+        memoryValue: "",
+        sensitivity: "normal",
+        quantity: null,
+        constraints: [`排除餐厅：${[...new Set(excludedRestaurantNames)].join("、")}`],
+        excludedRestaurantNames: [...new Set(excludedRestaurantNames)]
+      }
+    }
+  };
+}
+
+function mergeRestaurantNames(existingNames, restaurantList) {
+  return [
+    ...new Set([
+      ...(existingNames || []),
+      ...(restaurantList || []).map((restaurant) => restaurant.name).filter(Boolean)
+    ])
+  ];
 }
 
 function isNewOrderIntent(turn) {
@@ -342,6 +424,7 @@ function assessScenario(scenario, result, permissionState, subagentState, turnRe
   if (expect.shouldFlagLocationLimit && !hasLocationLimitSignal(result)) issues.push("换地址诉求没有提示当前仍是 Mock 距离/位置能力");
   if (expect.shouldFlagConflict && !hasConflictSignal(result, turnResults)) issues.push("冲突约束没有被识别为风险或进入追问");
   if (expect.shouldHandleMultiIntent && finalStatus === "memory_write_pending") issues.push("单句多意图只处理了记忆写入，没有继续处理当餐推荐");
+  if (expect.noOverlapWithFirstRestaurants && hasOverlapWithFirstRestaurants(restaurantsOut, turnResults)) issues.push("换一批餐厅时仍然推荐了上一批已展示餐厅");
   if (subagentState.status === "needs_attention") issues.push("Subagent 审查提示需要关注");
 
   const grade = issues.length === 0 ? "pass" : issues.length <= 2 ? "warn" : "fail";
@@ -380,6 +463,13 @@ function containsHotCandidate(result) {
 
 function containsOvertimeRestaurant(restaurantsOut, maxDeliveryMinutes) {
   return restaurantsOut.some((restaurant) => restaurant.deliveryMinutes > maxDeliveryMinutes);
+}
+
+function hasOverlapWithFirstRestaurants(restaurantsOut, turnResults) {
+  const firstRestaurants = turnResults.find((item) => item.restaurantRecommendations && item.restaurantRecommendations.length);
+  if (!firstRestaurants) return false;
+  const firstNames = firstRestaurants.restaurantRecommendations.map((restaurant) => restaurant.name);
+  return restaurantsOut.some((restaurant) => firstNames.includes(restaurant.name));
 }
 
 function containsAvoidedIngredient(result, avoidIngredients) {

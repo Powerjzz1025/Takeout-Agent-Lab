@@ -43,6 +43,7 @@ function createToolRuntime({ restaurants, userProfile, ragRuntime, memoryRuntime
         matchTags: restaurant.tags.filter((tag) => getNeedTerms(need).includes(tag))
       }))
       .filter((restaurant) => restaurant.deliveryMinutes <= need.maxDeliveryMinutes + maxDeliveryBuffer)
+      .filter((restaurant) => !isExcludedRestaurant(restaurant, need))
       .sort((a, b) => {
         if (a.distanceKm !== b.distanceKm) return a.distanceKm - b.distanceKm;
         return b.monthlySales - a.monthlySales;
@@ -75,7 +76,8 @@ function createToolRuntime({ restaurants, userProfile, ragRuntime, memoryRuntime
       rawText: need.rawText,
       tasteGoals: need.tasteGoals,
       maxDeliveryMinutes: need.maxDeliveryMinutes,
-      budget: need.budget
+      budget: need.budget,
+      excludedRestaurantNames: need.excludedRestaurantNames || []
     }, ranked);
     return ranked;
   }
@@ -312,18 +314,34 @@ function createToolRuntime({ restaurants, userProfile, ragRuntime, memoryRuntime
     const timeEligible = isStrictDeliveryTime(need)
       ? scored.filter((restaurant) => restaurant.deliveryMinutes <= need.maxDeliveryMinutes)
       : scored;
+    const notExcluded = timeEligible.filter((restaurant) => !isExcludedRestaurant(restaurant, need));
     if (shouldPreferLightFood(need)) {
-      return timeEligible.filter((restaurant) => supportsLightRestaurant(restaurant) && !isHeavySpicyRestaurant(restaurant));
+      return notExcluded.filter((restaurant) => supportsLightRestaurant(restaurant) && !isHeavySpicyRestaurant(restaurant));
     }
     if (shouldPreferHeavyFood(need)) {
-      return timeEligible.filter((restaurant) => isHeavySpicyRestaurant(restaurant));
+      return notExcluded.filter((restaurant) => isHeavySpicyRestaurant(restaurant));
     }
-    return timeEligible;
+    return notExcluded;
   }
 
   function getRestaurantPool({ scored, eligible, need }) {
     if (isStrictDeliveryTime(need)) return eligible;
-    return eligible.length >= 3 ? eligible : scored;
+    if ((shouldPreferLightFood(need) || shouldPreferHeavyFood(need)) && eligible.length) return eligible;
+    const notExcluded = scored.filter((restaurant) => !isExcludedRestaurant(restaurant, need));
+    return eligible.length >= 3 ? eligible : notExcluded;
+  }
+
+  function isExcludedRestaurant(restaurant, need) {
+    const excluded = need && need.excludedRestaurantNames ? need.excludedRestaurantNames : [];
+    return excluded.some((name) => {
+      const normalizedName = normalizeRestaurantName(name);
+      const normalizedRestaurant = normalizeRestaurantName(restaurant.name);
+      return normalizedName && (
+        normalizedRestaurant === normalizedName ||
+        normalizedRestaurant.includes(normalizedName) ||
+        normalizedName.includes(normalizedRestaurant)
+      );
+    });
   }
 
   function getEligibleDishes(scored, need) {
