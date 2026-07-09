@@ -148,6 +148,7 @@ npm run eval:stability
 
 - [开发进度](./PROGRESS.md)
 - [学习笔记](./docs/LEARNING_NOTES.md)
+- [系统架构说明](./docs/ARCHITECTURE.md)
 - [Agent 任务叙事](./docs/AGENT_STORY.md)
 - [S01-S10 能力盘查](./docs/S01_S10_AUDIT.md)
 - [LLM 意图识别说明](./docs/STEP19_LLM_INTENT.md)
