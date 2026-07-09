@@ -1,0 +1,112 @@
+[
+  {
+    "id": "standard_light_lunch",
+    "name": "标准清淡午餐推荐",
+    "query": "20 分钟内送到，清淡一点，预算 35 元左右",
+    "expect": {
+      "intent": "order_recommendation",
+      "route": "workflow",
+      "status": "restaurants_ready",
+      "skills": ["takeout-intent-routing", "restaurant-ranking"],
+      "pendingActions": [],
+      "restaurantRecommendations": 3,
+      "maxDishRecommendations": 0,
+      "permissionStatus": "ready",
+      "minTodoCount": 1,
+      "subagentStatus": "pass",
+      "minHookEvents": 3,
+      "minContextRecentTurns": 1,
+      "toolCalls": ["get_user_memory", "search_restaurants", "rank_restaurants"]
+    }
+  },
+  {
+    "id": "memory_write_cilantro",
+    "name": "保存忌口记忆前确认",
+    "query": "记住我不吃香菜",
+    "expect": {
+      "intent": "preference_update",
+      "route": "memory_write",
+      "status": "memory_write_pending",
+      "skills": ["takeout-intent-routing"],
+      "pendingActions": ["memory_confirmation"],
+      "maxRestaurantRecommendations": 0,
+      "maxDishRecommendations": 0,
+      "permissionStatus": "approval_required",
+      "minTodoCount": 1,
+      "subagentStatus": "pass",
+      "minHookEvents": 3,
+      "minContextRecentTurns": 1
+    }
+  },
+  {
+    "id": "food_knowledge",
+    "name": "饮食知识问答走 RAG",
+    "query": "减脂期外卖应该怎么点？",
+    "expect": {
+      "intent": "food_knowledge_query",
+      "route": "rag_lookup",
+      "status": "rag_answered",
+      "skills": ["takeout-intent-routing"],
+      "minKnowledgeResults": 1,
+      "permissionStatus": "ready",
+      "minTodoCount": 1,
+      "subagentStatus": "pass",
+      "minHookEvents": 3,
+      "minContextRecentTurns": 1
+    }
+  },
+  {
+    "id": "group_planning",
+    "name": "多人复杂点餐规划",
+    "query": "我们两个人，一个不吃辣，一个想高蛋白，人均 40 以内",
+    "expect": {
+      "intent": "complex_order_planning",
+      "route": "planning",
+      "status": "restaurants_ready",
+      "skills": ["takeout-intent-routing", "restaurant-ranking"],
+      "restaurantRecommendations": 3,
+      "pendingActions": [],
+      "permissionStatus": "ready",
+      "minTodoCount": 1,
+      "subagentStatus": "pass",
+      "minHookEvents": 3,
+      "minContextRecentTurns": 1
+    }
+  },
+  {
+    "id": "menu_lookup",
+    "name": "选定餐厅后的商品推荐",
+    "query": "蜀巷小碗菜有什么推荐？",
+    "expect": {
+      "intent": "menu_lookup",
+      "route": "single_tool",
+      "status": "dishes_ready",
+      "skills": ["takeout-intent-routing", "restaurant-ranking"],
+      "dishRecommendations": 5,
+      "permissionStatus": "ready",
+      "minTodoCount": 1,
+      "subagentStatus": "pass",
+      "minHookEvents": 4,
+      "minContextRecentTurns": 1,
+      "toolCalls": ["find_restaurant_by_name", "get_menu", "rank_dishes"]
+    }
+  },
+  {
+    "id": "agent_identity",
+    "name": "询问模型身份不走知识库",
+    "query": "你是什么模型？",
+    "expect": {
+      "intent": "agent_identity",
+      "route": "llm_direct",
+      "status": "llm_direct_answer",
+      "skills": ["takeout-intent-routing"],
+      "maxRestaurantRecommendations": 0,
+      "maxDishRecommendations": 0,
+      "permissionStatus": "ready",
+      "minTodoCount": 1,
+      "subagentStatus": "pass",
+      "minHookEvents": 2,
+      "minContextRecentTurns": 1
+    }
+  }
+]

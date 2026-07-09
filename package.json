@@ -1,0 +1,10 @@
+{
+  "scripts": {
+    "start": "node server.js",
+    "eval": "node evals/run-evals.js",
+    "eval:free": "node evals/free-scenario-audit.js",
+    "eval:complex": "node evals/complex-scenario-audit.js",
+    "check": "node --check app.js && node --check server.js && node --check prompt.js && node --check intent.js && node --check workflow.js && node --check llm-intent.js && node --check evals/run-evals.js && node --check evals/free-scenario-audit.js && node --check evals/complex-scenario-audit.js"
+  },
+  "dependencies": {}
+}

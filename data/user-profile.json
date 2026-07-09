@@ -1,0 +1,190 @@
+{
+  "userId": "demo_user_zhangsan",
+  "displayName": "张三",
+  "profile": {
+    "identity": "互联网公司高级产品经理",
+    "gender": "男",
+    "age": 32,
+    "birthDate": "1994-04-15",
+    "hometown": "四川省成都市",
+    "currentCity": "北京市",
+    "education": "本科，计算机科学与技术专业",
+    "industry": "在线教育 / 知识付费",
+    "lifeStage": "已婚有孩的一线城市上班族",
+    "familyStatus": "已婚，育有 3 岁半女儿",
+    "incomeRangeMonthly": "税前 28000 元，含年终奖平摊约 35000 元/月",
+    "familyIncomeMonthly": "约 45000 元",
+    "workStyle": "工作节奏快，通勤时间长，午餐常依赖公司附近快餐或外卖",
+    "healthFocus": ["控制体重", "保持饱腹", "减少加班夜宵负担"],
+    "privacyLevel": "demo_profile"
+  },
+  "defaultLocation": {
+    "label": "北京市海淀区中关村大街理想国际大厦",
+    "lng": 116.316,
+    "lat": 39.984
+  },
+  "locations": [
+    {
+      "id": "loc_work",
+      "type": "work",
+      "label": "工作地",
+      "address": "北京市海淀区中关村大街理想国际大厦",
+      "lng": 116.316,
+      "lat": 39.984,
+      "deliveryPreference": "工作日午餐优先选择公司附近配送稳定的快餐或外卖"
+    },
+    {
+      "id": "loc_home",
+      "type": "home",
+      "label": "住处",
+      "address": "北京市朝阳区常营中路保利嘉园小区",
+      "lng": 116.588,
+      "lat": 39.925,
+      "deliveryPreference": "晚餐和周末家庭点餐需要兼顾妻子和孩子口味"
+    }
+  ],
+  "preferenceSummary": {
+    "favoriteTaste": ["麻辣", "香辣", "川菜", "湘菜", "中式烧烤"],
+    "favoriteCategories": ["川菜", "湘菜", "烧烤", "小碗菜", "轻食沙拉"],
+    "favoriteDishes": ["水煮鱼", "回锅肉", "麻婆豆腐", "辣子鸡", "蒜泥白肉", "鸭脖", "卤味", "烧烤"],
+    "dislikedTaste": ["香菜"],
+    "avoidIngredients": ["香菜"],
+    "familyAvoidIngredients": ["羊肉"],
+    "allergens": [],
+    "budgetHabit": {
+      "weekdayLunch": "30-50",
+      "weekdayDinner": "40-70",
+      "familyDiningPerPerson": "100-150",
+      "weeklyTakeout": "约 400"
+    },
+    "deliveryHabit": {
+      "weekdayLunchMaxMinutes": 35,
+      "defaultMaxMinutes": 40,
+      "overtimeNightSnackMaxMinutes": 45
+    },
+    "orderingHabits": [
+      "工作日午餐常在公司附近点快餐或外卖",
+      "偏好小碗菜、水煮鱼、回锅肉等重口味菜品",
+      "每周至少 2 次轻食沙拉以控制体重",
+      "加班时常点烧烤外卖",
+      "家庭点餐时需要避开妻子忌食的羊肉"
+    ],
+    "drinkPreferences": ["早餐美式咖啡", "下午茶冰拿铁", "无糖可乐", "精酿啤酒"]
+  },
+  "familyContext": {
+    "spouse": {
+      "name": "李四",
+      "age": 31,
+      "occupation": "文学类出版社策划编辑",
+      "foodAvoidance": ["羊肉"],
+      "lifestyle": "喜好文艺展览与阅读"
+    },
+    "child": {
+      "age": "3 岁半",
+      "stage": "幼儿园小班",
+      "notes": "家庭周末常去亲子区和公园，家庭餐需要更温和稳妥"
+    }
+  },
+  "memories": [
+    {
+      "id": "m001",
+      "type": "preference",
+      "content": "张三最喜欢川菜、湘菜和中式烧烤，偏好麻辣、香辣口味",
+      "value": "川菜 湘菜 中式烧烤 麻辣 香辣",
+      "confidence": 0.92,
+      "source": "zhangsan_profile_doc",
+      "updatedAt": "2026-07-09",
+      "scope": "long_term",
+      "sensitivity": "normal"
+    },
+    {
+      "id": "m002",
+      "type": "habit",
+      "content": "工作日午餐常在公司附近点快餐或外卖，偏好小碗菜、水煮鱼、回锅肉",
+      "value": "工作日午餐 小碗菜 水煮鱼 回锅肉",
+      "confidence": 0.9,
+      "source": "zhangsan_profile_doc",
+      "updatedAt": "2026-07-09",
+      "scope": "long_term",
+      "sensitivity": "normal"
+    },
+    {
+      "id": "m003",
+      "type": "health",
+      "content": "张三有控制体重诉求，每周至少 2 次轻食沙拉",
+      "value": "控制体重 轻食沙拉 每周2次",
+      "confidence": 0.86,
+      "source": "zhangsan_profile_doc",
+      "updatedAt": "2026-07-09",
+      "scope": "long_term",
+      "sensitivity": "normal"
+    },
+    {
+      "id": "m004",
+      "type": "avoid",
+      "content": "张三不吃香菜",
+      "value": "香菜",
+      "confidence": 0.95,
+      "source": "zhangsan_profile_doc",
+      "updatedAt": "2026-07-09",
+      "scope": "long_term",
+      "sensitivity": "normal"
+    },
+    {
+      "id": "m005",
+      "type": "family_avoid",
+      "content": "家庭点餐时妻子忌食羊肉，需要避开",
+      "value": "羊肉",
+      "confidence": 0.88,
+      "source": "zhangsan_profile_doc",
+      "updatedAt": "2026-07-09",
+      "scope": "long_term",
+      "sensitivity": "normal"
+    },
+    {
+      "id": "m006",
+      "type": "location",
+      "content": "工作日午餐常用配送地址在北京市海淀区中关村大街理想国际大厦",
+      "value": "北京市海淀区中关村大街理想国际大厦",
+      "confidence": 0.86,
+      "source": "zhangsan_profile_doc",
+      "updatedAt": "2026-07-09",
+      "scope": "long_term",
+      "sensitivity": "private"
+    },
+    {
+      "id": "m007",
+      "type": "location",
+      "content": "家庭住址在北京市朝阳区常营中路保利嘉园小区",
+      "value": "北京市朝阳区常营中路保利嘉园小区",
+      "confidence": 0.86,
+      "source": "zhangsan_profile_doc",
+      "updatedAt": "2026-07-09",
+      "scope": "long_term",
+      "sensitivity": "private"
+    },
+    {
+      "id": "m008",
+      "type": "habit",
+      "content": "加班时常点烧烤外卖，偏好鸭脖、卤味、薯片、无糖可乐",
+      "value": "加班 烧烤 鸭脖 卤味 无糖可乐",
+      "confidence": 0.82,
+      "source": "zhangsan_profile_doc",
+      "updatedAt": "2026-07-09",
+      "scope": "long_term",
+      "sensitivity": "normal"
+    },
+    {
+      "id": "m009",
+      "type": "budget",
+      "content": "每周外卖费用约 400 元，家庭外出就餐人均 100-150 元",
+      "value": "外卖每周约400 家庭外出人均100-150",
+      "confidence": 0.78,
+      "source": "zhangsan_profile_doc",
+      "updatedAt": "2026-07-09",
+      "scope": "long_term",
+      "sensitivity": "normal"
+    }
+  ],
+  "pendingMemories": []
+}
