@@ -9,7 +9,17 @@ function createOrderingWorkflow({ toolRuntime, userProfile, intentRouter, planni
       rawText: slots.rawText,
       budget: slots.budget || 45,
       maxDeliveryMinutes: slots.maxDeliveryMinutes || 35,
-      deliveryTimeStrict: isStrictDeliveryTime(slots.rawText),
+      deliveryTimeStrict: typeof slots.deliveryTimeStrict === "boolean"
+        ? slots.deliveryTimeStrict
+        : isStrictDeliveryTime(slots.rawText),
+      budgetStrict: typeof slots.budgetStrict === "boolean"
+        ? slots.budgetStrict
+        : isStrictBudget(slots.rawText),
+      budgetScope: slots.peopleCount > 1
+        ? (["total", "per_person"].includes(slots.budgetScope)
+          ? slots.budgetScope
+          : /人均|每人|每个人/.test(slots.rawText) ? "per_person" : /总预算|合计|总共|一共/.test(slots.rawText) ? "total" : "unknown")
+        : "single",
       tasteGoals: slots.tasteGoals || [],
       avoidIngredients: slots.avoidIngredients,
       mealContext: slots.mealContext,
@@ -54,12 +64,12 @@ function createOrderingWorkflow({ toolRuntime, userProfile, intentRouter, planni
     if (need.missingSlots.includes("预算")) assumptions.push("未说明预算，先按张三常见午餐预算估算");
     if (need.missingSlots.includes("配送时间")) assumptions.push("未说明配送时间，先按 35 分钟内估算");
 
-    if (intentResult.missingSlots.length) {
-      return buildClarifyResult({ intentResult, need, assumptions });
-    }
+    let result;
 
-    if (hasFlavorConflict(need) && intentResult.route !== "planning") {
-      return buildClarifyResult({
+    if (intentResult.missingSlots.length) {
+      result = buildClarifyResult({ intentResult, need, assumptions });
+    } else if (hasFlavorConflict(need) && intentResult.route !== "planning") {
+      result = buildClarifyResult({
         intentResult,
         need,
         assumptions: [
@@ -68,16 +78,48 @@ function createOrderingWorkflow({ toolRuntime, userProfile, intentRouter, planni
         ],
         clarificationQuestion: "你想吃的方向和忌口有点冲突：你提到了重口/辣味方向，但同时又说不要辣。要不要我优先找不辣、蒜香或酱香版本？"
       });
+    } else if (intentResult.route === "rag_lookup") {
+      result = runRagRoute({ intentResult, need });
+    } else if (intentResult.route === "llm_direct") {
+      result = buildLLMDirectResult({ intentResult, need });
+    } else if (intentResult.route === "memory_write") {
+      result = buildMemoryWriteResult({ intentResult, need });
+    } else if (intentResult.route === "single_tool" && intentResult.toolName === "get_menu") {
+      result = runDishRoute({ intentResult, need, assumptions });
+    } else if (intentResult.route === "single_tool" && intentResult.toolName === "search_restaurants") {
+      result = runRestaurantRoute({ intentResult, need, assumptions });
+    } else if (intentResult.route === "planning") {
+      result = runPlanningRoute({ intentResult, need, assumptions });
+    } else {
+      result = runRestaurantRoute({ intentResult, need, assumptions });
     }
 
-    if (intentResult.route === "rag_lookup") return runRagRoute({ intentResult, need });
-    if (intentResult.route === "llm_direct") return buildLLMDirectResult({ intentResult, need });
-    if (intentResult.route === "memory_write") return buildMemoryWriteResult({ intentResult, need });
-    if (intentResult.route === "single_tool" && intentResult.toolName === "get_menu") return runDishRoute({ intentResult, need, assumptions });
-    if (intentResult.route === "single_tool" && intentResult.toolName === "search_restaurants") return runRestaurantRoute({ intentResult, need, assumptions });
-    if (intentResult.route === "planning") return runPlanningRoute({ intentResult, need, assumptions });
+    return applySideEffects(result, intentResult);
+  }
 
-    return runRestaurantRoute({ intentResult, need, assumptions });
+  function applySideEffects(result, intentResult) {
+    const sideEffects = intentResult.sideEffects || [];
+    const notes = [];
+
+    sideEffects.forEach((sideEffect) => {
+      if (sideEffect.type !== "memory_write" || !sideEffect.memory) return;
+      const value = String(sideEffect.memory.value || "");
+      const existing = (userProfile.memories || []).find((memory) => {
+        const existingValue = String(memory.value || "");
+        return value && (existingValue.includes(value) || value.includes(existingValue));
+      });
+      if (existing) {
+        notes.push(`长期记忆中已存在：${existing.content}`);
+        return;
+      }
+      const saveResult = toolRuntime.saveUserMemory({ memory: sideEffect.memory });
+      result.memories = [saveResult.pendingMemory, ...(result.memories || [])];
+      notes.push(`本餐已按“${value}”执行；是否保存为长期记忆需要用户确认。`);
+    });
+
+    result.sideEffectNotes = notes;
+    result.toolCalls = toolRuntime.getTrace();
+    return result;
   }
 
   function runRestaurantRoute({ intentResult, need, assumptions, planningMode = false }) {
@@ -345,6 +387,13 @@ function createOrderingWorkflow({ toolRuntime, userProfile, intentRouter, planni
       constraintAudit,
       recommendations: dishRecommendations,
       planningResult,
+      dataSource: {
+        restaurant: "catalog",
+        distance: "estimated",
+        deliveryTime: "estimated",
+        realtime: false
+      },
+      sideEffectNotes: [],
       toolCalls: toolRuntime.getTrace(),
       workflowState,
       reply
@@ -365,7 +414,16 @@ function createOrderingWorkflow({ toolRuntime, userProfile, intentRouter, planni
   }
 
   function isStrictDeliveryTime(text = "") {
-    return /严格|必须|务必|一定|硬性|不能超过|不超过|别超过|最多|至多|以内|以下/.test(text);
+    const match = String(text).match(/(?:必须|务必|严格|硬性|最多|不超过|不能超过|别超过|最好|尽量|大约|左右|都行|优先)?[^，。；]{0,10}\d+\s*分钟(?:以内|内|以下|左右|上下)?/);
+    if (!match) return false;
+    if (/左右|上下|大约|最好|尽量|优先|都行/.test(match[0])) return false;
+    return /必须|务必|严格|硬性|最多|不超过|不能超过|别超过|以内|分钟内|以下/.test(match[0]);
+  }
+
+  function isStrictBudget(text = "") {
+    const match = String(text).match(/(?:预算|控制在|不超过|不能超过|别超过|最多)?[^，。；]{0,8}\d+\s*(?:元|块)(?:以内|以下|左右)?/);
+    if (!match || /左右|大约/.test(match[0])) return false;
+    return /控制在|不超过|不能超过|别超过|最多|以内|以下/.test(match[0]);
   }
 
   return { run };

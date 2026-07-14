@@ -8,6 +8,24 @@ const statePreviewEl = document.querySelector("#statePreview");
 const pendingActionsEl = document.querySelector("#pendingActions");
 const skillStateEl = document.querySelector("#skillState");
 const llmStateEl = document.querySelector("#llmState");
+const addressSelectEl = document.querySelector("#addressSelect");
+const agentLayoutEl = document.querySelector(".agent-layout");
+const developerModeButtonEl = document.querySelector("#developerModeButton");
+const closeDeveloperButtonEl = document.querySelector("#closeDeveloperButton");
+const developerConsoleEl = document.querySelector("#developerConsole");
+const traceTimelineEl = document.querySelector("#traceTimeline");
+const memorySearchEl = document.querySelector("#memorySearch");
+const memoryTypeFilterEl = document.querySelector("#memoryTypeFilter");
+const memorySummaryEl = document.querySelector("#memorySummary");
+const memoryListEl = document.querySelector("#memoryList");
+const systemPromptEditorEl = document.querySelector("#systemPromptEditor");
+const defaultPromptPreviewEl = document.querySelector("#defaultPromptPreview");
+const promptStatusEl = document.querySelector("#promptStatus");
+const savePromptButtonEl = document.querySelector("#savePromptButton");
+const restorePromptButtonEl = document.querySelector("#restorePromptButton");
+const skillRegistryEl = document.querySelector("#skillRegistry");
+const dataSummaryEl = document.querySelector("#dataSummary");
+const dataExplorerEl = document.querySelector("#dataExplorer");
 
 let restaurants = [];
 let userProfile = null;
@@ -18,6 +36,7 @@ let permissionRuntime = null;
 let hookRuntime = null;
 let toolRuntime = null;
 let intentRouter = null;
+let intentV2Runtime = null;
 let planningRuntime = null;
 let todoRuntime = null;
 let subagentRuntime = null;
@@ -26,9 +45,16 @@ let skillRuntime = null;
 let safetyRuntime = null;
 let orderingWorkflow = null;
 let dialogueStateRuntime = null;
+let conversationPolicyRuntime = null;
+let isPromptProcessing = false;
+let developerPromptConfig = {
+  override: "",
+  defaultPrompt: "",
+  updatedAt: null
+};
 
 const fallbackUserProfile = {
-  userId: "demo_user",
+  userId: "user_zhangsan",
   displayName: "林一舟",
   profile: {
     identity: "互联网产品经理",
@@ -37,7 +63,7 @@ const fallbackUserProfile = {
     incomeRangeMonthly: "25000-35000 RMB",
     workStyle: "工作日节奏紧，午餐决策时间短，偏好高效率点餐",
     healthFocus: ["控油", "稳定饱腹", "避免饭后犯困"],
-    privacyLevel: "demo_profile"
+    privacyLevel: "standard_profile"
   },
   defaultLocation: {
     label: "上海市黄浦区人民广场附近",
@@ -93,7 +119,7 @@ const fallbackUserProfile = {
       content: "用户偏好清淡、少油、咸鲜口味的工作餐",
       value: "清淡少油咸鲜",
       confidence: 0.86,
-      source: "demo_profile_seed",
+      source: "profile_seed",
       updatedAt: "2026-07-08",
       scope: "long_term",
       sensitivity: "normal"
@@ -104,7 +130,7 @@ const fallbackUserProfile = {
       content: "午餐常用预算在 30-40 元",
       value: "30-40",
       confidence: 0.82,
-      source: "demo_profile_seed",
+      source: "profile_seed",
       updatedAt: "2026-07-08",
       scope: "long_term",
       sensitivity: "normal"
@@ -115,7 +141,7 @@ const fallbackUserProfile = {
       content: "不喜欢太油、过甜、重麻重辣的菜",
       value: "太油 过甜 重麻重辣",
       confidence: 0.78,
-      source: "demo_profile_seed",
+      source: "profile_seed",
       updatedAt: "2026-07-08",
       scope: "long_term",
       sensitivity: "normal"
@@ -126,7 +152,7 @@ const fallbackUserProfile = {
       content: "用户不吃香菜",
       value: "香菜",
       confidence: 0.9,
-      source: "demo_profile_seed",
+      source: "profile_seed",
       updatedAt: "2026-07-08",
       scope: "long_term",
       sensitivity: "normal"
@@ -137,7 +163,7 @@ const fallbackUserProfile = {
       content: "工作日午餐常用配送地址在上海市黄浦区人民广场附近",
       value: "上海市黄浦区人民广场附近",
       confidence: 0.8,
-      source: "demo_profile_seed",
+      source: "profile_seed",
       updatedAt: "2026-07-08",
       scope: "long_term",
       sensitivity: "private"
@@ -148,7 +174,7 @@ const fallbackUserProfile = {
       content: "工作日午餐更看重配送稳定、热食和饭后不困",
       value: "配送稳定 热食 饭后不困",
       confidence: 0.76,
-      source: "demo_profile_seed",
+      source: "profile_seed",
       updatedAt: "2026-07-08",
       scope: "long_term",
       sensitivity: "normal"
@@ -158,6 +184,7 @@ const fallbackUserProfile = {
 };
 
 const appState = {
+  activeLocation: null,
   userProfileSnapshot: {},
   intentResult: {
     intent: "",
@@ -177,6 +204,8 @@ const appState = {
     budget: null,
     maxDeliveryMinutes: null,
     deliveryTimeStrict: false,
+    budgetStrict: false,
+    budgetScope: "single",
     tasteGoals: [],
     avoidIngredients: [],
     excludedRestaurantNames: [],
@@ -201,7 +230,9 @@ const appState = {
     improvedReply: "",
     decisionNotes: [],
     risks: [],
-    nextBestAction: ""
+    nextBestAction: "",
+    replySource: "none",
+    parseStatus: "idle"
   },
   llmIntentState: {
     mode: "idle",
@@ -386,9 +417,283 @@ const fallbackRestaurants = [
 
 const defaultSteps = [
   "等待用户输入点餐需求",
-  "Step 13 已建立：先推荐 3 家餐厅，选店后推荐 5 个商品",
-  "Step 15 已建立：S01-S10 基础 Agent 能力已接入并可评测"
+  "理解预算、时间、口味和忌口",
+  "先筛选餐厅，选店后再推荐商品"
 ];
+
+function setDeveloperMode(isOpen) {
+  developerConsoleEl.hidden = !isOpen;
+  agentLayoutEl.classList.toggle("developer-open", isOpen);
+  developerModeButtonEl.setAttribute("aria-expanded", String(isOpen));
+  if (isOpen) renderDeveloperPanels();
+}
+
+function selectDeveloperTab(tabName) {
+  document.querySelectorAll("[data-dev-tab]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.devTab === tabName);
+  });
+  document.querySelectorAll("[data-dev-panel]").forEach((panel) => {
+    const isActive = panel.dataset.devPanel === tabName;
+    panel.hidden = !isActive;
+    panel.classList.toggle("active", isActive);
+  });
+}
+
+function renderDeveloperPanels() {
+  renderTraceTimeline();
+  renderMemoryCenter();
+  renderSkillRegistry();
+  renderDataExplorer();
+}
+
+function renderTraceTimeline() {
+  if (!traceTimelineEl) return;
+  const events = buildTraceEvents();
+  traceTimelineEl.replaceChildren();
+
+  events.forEach((event, index) => {
+    const row = document.createElement("div");
+    row.className = "trace-event";
+
+    const indexNode = document.createElement("div");
+    indexNode.className = "trace-index";
+    indexNode.textContent = String(index + 1);
+
+    const body = document.createElement("div");
+    body.className = "trace-body";
+    const title = document.createElement("strong");
+    title.textContent = event.title;
+    const summary = document.createElement("span");
+    summary.textContent = event.summary;
+    body.append(title, summary);
+
+    if (event.data !== undefined) {
+      const details = document.createElement("details");
+      const detailsTitle = document.createElement("summary");
+      detailsTitle.textContent = "查看输入与输出";
+      const pre = document.createElement("pre");
+      pre.textContent = JSON.stringify(event.data, null, 2);
+      details.append(detailsTitle, pre);
+      body.appendChild(details);
+    }
+
+    row.append(indexNode, body);
+    traceTimelineEl.appendChild(row);
+  });
+}
+
+function buildTraceEvents() {
+  const events = [];
+  const recentTurns = appState.contextCompactState.recentTurns || [];
+  const latestTurn = recentTurns.length ? recentTurns[recentTurns.length - 1] : null;
+  if (latestTurn || appState.userNeed.rawText) {
+    events.push({
+      title: "接收用户输入",
+      summary: appState.userNeed.rawText || "已记录本轮上下文",
+      data: latestTurn || { rawText: appState.userNeed.rawText }
+    });
+  }
+
+  if (appState.intentResult.intent) {
+    events.push({
+      title: "混合意图理解",
+      summary: `${appState.intentResult.label || appState.intentResult.intent}，路由到 ${appState.intentResult.route || "待决策"}`,
+      data: {
+        llmSource: appState.llmIntentState.source,
+        confidence: appState.intentResult.confidence,
+        slots: appState.intentResult.slots,
+        missingSlots: appState.intentResult.missingSlots,
+        routeReason: appState.intentResult.routeReason
+      }
+    });
+  }
+
+  (appState.skillState.selectedSkills || []).forEach((skill) => {
+    events.push({
+      title: `加载 Skill：${skill.title}`,
+      summary: skill.reason,
+      data: { name: skill.name, stage: skill.stage, rules: skill.keyRules }
+    });
+  });
+
+  (appState.toolCalls || []).forEach((call) => {
+    events.push({
+      title: `调用工具：${call.toolName || call.name || "未命名工具"}`,
+      summary: call.status === "error" ? "工具调用失败" : "工具返回结果并进入事实校验",
+      data: call
+    });
+  });
+
+  if (appState.workflowState.status !== "idle") {
+    events.push({
+      title: "推进 Workflow",
+      summary: `${appState.workflowState.status} · ${appState.workflowState.currentStep}`,
+      data: appState.workflowState
+    });
+  }
+
+  if (appState.llmState.mode !== "idle") {
+    events.push({
+      title: "生成最终回复",
+      summary: `${getLLMModeText(appState.llmState.mode)} · 来源 ${appState.llmState.replySource || "未记录"}`,
+      data: {
+        model: appState.llmState.model,
+        summary: appState.llmState.summary,
+        decisionNotes: appState.llmState.decisionNotes,
+        risks: appState.llmState.risks,
+        nextBestAction: appState.llmState.nextBestAction
+      }
+    });
+  }
+
+  if (!events.length) {
+    events.push({
+      title: "等待任务",
+      summary: "发送一条点餐需求后，这里会按顺序展示 Agent 的理解、路由、工具和回复过程。"
+    });
+  }
+  return events;
+}
+
+function renderMemoryCenter() {
+  if (!memoryListEl || !userProfile) return;
+  const memories = Array.isArray(userProfile.memories) ? userProfile.memories : [];
+  const types = [...new Set(memories.map((memory) => memory.type).filter(Boolean))];
+  const selectedType = memoryTypeFilterEl.value || "all";
+  const existingOptions = [...memoryTypeFilterEl.options].map((option) => option.value);
+  types.forEach((type) => {
+    if (existingOptions.includes(type)) return;
+    const option = document.createElement("option");
+    option.value = type;
+    option.textContent = formatMemoryType(type);
+    memoryTypeFilterEl.appendChild(option);
+  });
+
+  const keyword = memorySearchEl.value.trim().toLowerCase();
+  const recalledIds = new Set(
+    appState.userNeed.rawText
+      ? (appState.selectedMemories || []).map((memory) => memory.id)
+      : []
+  );
+  const filtered = memories.filter((memory) => {
+    const matchesType = selectedType === "all" || memory.type === selectedType;
+    const searchable = `${memory.type} ${memory.content} ${memory.value} ${memory.source}`.toLowerCase();
+    return matchesType && (!keyword || searchable.includes(keyword));
+  });
+
+  memorySummaryEl.replaceChildren(
+    createSummaryMetric(`${memories.length} 条长期记忆`),
+    createSummaryMetric(`${types.length} 个类型`),
+    createSummaryMetric(`本轮召回 ${recalledIds.size} 条`)
+  );
+  memoryListEl.replaceChildren();
+
+  if (!filtered.length) {
+    memoryListEl.appendChild(createEmptyDeveloperState("没有匹配的记忆。"));
+    return;
+  }
+
+  filtered.forEach((memory) => {
+    const node = document.createElement("article");
+    node.className = "memory-item";
+    const header = document.createElement("div");
+    header.className = "memory-item-header";
+    const title = document.createElement("strong");
+    title.textContent = formatMemoryType(memory.type);
+    const badge = document.createElement("span");
+    badge.className = recalledIds.has(memory.id) ? "active-badge" : "meta-badge";
+    badge.textContent = recalledIds.has(memory.id) ? "本轮已召回" : `置信度 ${Math.round((memory.confidence || 0) * 100)}%`;
+    header.append(title, badge);
+    const content = document.createElement("p");
+    content.textContent = memory.content || memory.value || "暂无内容";
+    const meta = document.createElement("p");
+    meta.textContent = `来源：${memory.source || "未知"} · 范围：${memory.scope || "未标注"} · 敏感级别：${memory.sensitivity || "normal"}`;
+    node.append(header, content, meta);
+    memoryListEl.appendChild(node);
+  });
+}
+
+function formatMemoryType(type) {
+  const labels = {
+    preference: "口味偏好",
+    budget: "预算习惯",
+    dislike: "不喜欢",
+    avoid: "忌口",
+    allergy: "过敏信息",
+    health: "健康目标",
+    family_avoid: "家庭忌口",
+    location: "常用地址",
+    habit: "点餐习惯"
+  };
+  return labels[type] || type || "未分类";
+}
+
+function renderSkillRegistry() {
+  if (!skillRegistryEl || !skillRuntime) return;
+  const selectedNames = new Set((appState.skillState.selectedSkills || []).map((skill) => skill.name));
+  skillRegistryEl.replaceChildren();
+  skillRuntime.listSkills().forEach((skill) => {
+    const node = document.createElement("article");
+    node.className = "registry-item";
+    const header = document.createElement("div");
+    header.className = "registry-item-header";
+    const title = document.createElement("strong");
+    title.textContent = skill.title;
+    const badge = document.createElement("span");
+    badge.className = selectedNames.has(skill.name) ? "active-badge" : "meta-badge";
+    badge.textContent = selectedNames.has(skill.name) ? "本轮已加载" : skill.stage;
+    header.append(title, badge);
+    const description = document.createElement("p");
+    description.textContent = skill.description;
+    const boundary = document.createElement("p");
+    boundary.textContent = `内部名称：${skill.name} · 文件：${skill.path}`;
+    node.append(header, description, boundary);
+    skillRegistryEl.appendChild(node);
+  });
+}
+
+function renderDataExplorer() {
+  if (!dataExplorerEl) return;
+  const menuItemCount = restaurants.reduce((total, restaurant) => total + (restaurant.dishes || []).length, 0);
+  dataSummaryEl.replaceChildren(
+    createSummaryMetric(`${restaurants.length} 家餐厅`),
+    createSummaryMetric(`${menuItemCount} 个商品`),
+    createSummaryMetric(`${knowledgeBase.length} 条知识`),
+    createSummaryMetric(`${(appState.toolCalls || []).length} 次工具调用`)
+  );
+  dataExplorerEl.replaceChildren();
+  dataExplorerEl.append(
+    createDataSection("当前会话", `Workflow：${appState.workflowState.status}；已展示餐厅 ${appState.seenRestaurantNames.length} 家；当前选店：${appState.selectedRestaurant ? appState.selectedRestaurant.name : "无"}。`),
+    createDataSection("餐厅与菜单", `餐厅和商品分别建模；推荐阶段先筛店，用户选店后才读取该店菜单。当前数据包含 ${restaurants.length} 家餐厅、${menuItemCount} 个商品。`),
+    createDataSection("知识库", `当前有 ${knowledgeBase.length} 条饮食与点餐知识，检索结果只作为模型上下文，不会原样返回给用户。`),
+    createDataSection("安全边界", "开发者模式不会展示 API Key；精确地址和敏感记忆只显示必要摘要，写入长期记忆仍需用户确认。")
+  );
+}
+
+function createSummaryMetric(text) {
+  const node = document.createElement("span");
+  node.className = "summary-metric";
+  node.textContent = text;
+  return node;
+}
+
+function createDataSection(titleText, descriptionText) {
+  const node = document.createElement("article");
+  node.className = "data-section";
+  const title = document.createElement("strong");
+  title.textContent = titleText;
+  const description = document.createElement("p");
+  description.textContent = descriptionText;
+  node.append(title, description);
+  return node;
+}
+
+function createEmptyDeveloperState(text) {
+  const node = document.createElement("div");
+  node.className = "empty-developer-state";
+  node.textContent = text;
+  return node;
+}
 
 function addMessage(role, text) {
   const node = document.createElement("div");
@@ -630,6 +935,11 @@ function renderSteps(steps) {
 function renderStatePreview() {
   const cards = [
     {
+      title: "ActiveLocation",
+      note: "当前实际配送地址",
+      data: appState.activeLocation
+    },
+    {
       title: "UserProfile",
       note: "用户画像",
       data: appState.userProfileSnapshot
@@ -764,12 +1074,18 @@ function renderStatePreview() {
   cards.forEach((card) => {
     const node = document.createElement("div");
     node.className = "state-card";
-    node.innerHTML = `
-      <div class="state-card-title">${card.title}<span>${card.note}</span></div>
-      <pre>${JSON.stringify(card.data, null, 2)}</pre>
-    `;
+    const title = document.createElement("div");
+    title.className = "state-card-title";
+    title.append(document.createTextNode(card.title));
+    const note = document.createElement("span");
+    note.textContent = card.note;
+    title.appendChild(note);
+    const pre = document.createElement("pre");
+    pre.textContent = JSON.stringify(card.data, null, 2);
+    node.append(title, pre);
     statePreviewEl.appendChild(node);
   });
+  renderDeveloperPanels();
 }
 
 function renderSkillState() {
@@ -802,7 +1118,7 @@ function renderLLMState() {
 
   if (appState.llmState.mode === "idle") {
     llmStateEl.className = "llm-state empty";
-    llmStateEl.textContent = "使用本地服务启动后，这里会显示真实大模型或 mock 复核结果。";
+    llmStateEl.textContent = "发送需求后，这里会显示模型分析结果。";
     return;
   }
 
@@ -814,6 +1130,7 @@ function renderLLMState() {
   node.innerHTML = `
     <strong>${getLLMModeText(appState.llmState.mode)} · ${appState.llmState.model || "未配置模型"}</strong>
     <span>${appState.llmState.summary}</span>
+    <span>回复来源：${appState.llmState.replySource || "未记录"} · 解析状态：${appState.llmState.parseStatus || "未记录"}</span>
     <span>建议回复：${appState.llmState.improvedReply || "暂无"}</span>
     <span>下一步：${appState.llmState.nextBestAction || "暂无"}</span>
     ${notes ? `<ul>${notes}</ul>` : ""}
@@ -824,7 +1141,8 @@ function renderLLMState() {
 
 function getLLMModeText(mode) {
   if (mode === "real") return "真实大模型";
-  if (mode === "mock") return "Mock 复核";
+  if (mode === "structured") return "结构化事实回复";
+  if (mode === "mock") return "本地策略复核";
   if (mode === "error") return "调用异常";
   if (mode === "skipped") return "未启动服务";
   return "复核中";
@@ -890,7 +1208,7 @@ function renderRecommendations({
         <span>月售 ${restaurant.monthlySales || "-"} 单</span>
         <span>距离约 ${restaurant.distanceKm || "-"}km</span>
       </div>
-      <span>核心餐品：${(restaurant.coreItems || []).join("、") || "暂无"}</span>
+      <span>核心餐品：${(restaurant.displayCoreItems || restaurant.coreItems || []).join("、") || "暂无"}</span>
       <span>匹配原因：${(restaurant.matchReasons || restaurant.tags || []).slice(0, 4).join("、") || "综合匹配当前需求"}</span>
     `;
     recommendationsEl.appendChild(node);
@@ -918,6 +1236,7 @@ function renderRecommendations({
     `;
     recommendationsEl.appendChild(node);
   });
+
 }
 
 async function handlePrompt(text) {
@@ -931,6 +1250,11 @@ async function handlePrompt(text) {
     restaurants
   });
   appState.dialogueState = dialogueTurnState;
+
+  if (conversationPolicyRuntime.isRealDataOnlyRequest(text)) {
+    handleDataSourceBoundary(text, thinkingMessage);
+    return;
+  }
 
   const dishSelection = dialogueTurnState.selectedDish || resolveDishSelection(text);
   if (dishSelection) {
@@ -953,7 +1277,9 @@ async function handlePrompt(text) {
     : buildAlternativeRestaurantRequest(text, contextualText);
   const workflowText = alternativeRequest
     ? alternativeRequest.workflowText
-    : resolveRestaurantSelection(contextualText);
+    : dialogueTurnState.selectedRestaurant
+      ? buildRestaurantSelectionPrompt(dialogueTurnState.selectedRestaurant, text)
+      : resolveRestaurantSelection(contextualText);
 
   renderSteps([
     "Intent：识别用户意图类别",
@@ -974,9 +1300,24 @@ async function handlePrompt(text) {
     originalText: text,
     contextualText: workflowText
   });
+  const policyIntentResult = conversationPolicyRuntime.applyIntentPolicy({
+    intentResult: parsedIntentState.intentResult,
+    dialogueState: dialogueTurnState,
+    text,
+    previousNeed: appState.userNeed,
+    selectedRestaurant: dialogueTurnState.selectedRestaurant || appState.selectedRestaurant
+  });
   const executableIntentResult = alternativeRequest
-    ? buildAlternativeRestaurantIntentResult(parsedIntentState.intentResult, alternativeRequest, workflowText)
-    : parsedIntentState.intentResult;
+    ? buildAlternativeRestaurantIntentResult(policyIntentResult, alternativeRequest, workflowText)
+    : policyIntentResult;
+  if (intentV2Runtime) {
+    executableIntentResult.semanticFrame = intentV2Runtime.buildSemanticFrame({
+      text,
+      legacyIntentResult: executableIntentResult,
+      dialogueState: dialogueTurnState,
+      previousNeed: appState.userNeed
+    });
+  }
   const result = orderingWorkflow.run(workflowText, {
     intentResult: executableIntentResult
   });
@@ -993,24 +1334,30 @@ async function handlePrompt(text) {
     error: parsedIntentState.error || "",
     rawModelResult: parsedIntentState.rawModelResult || null
   };
-  appState.userNeed = result.need;
+  const shouldCommitTask = conversationPolicyRuntime.shouldCommitNeed({
+    intentResult: result.intentResult,
+    workflowResult: result
+  });
+  if (shouldCommitTask) appState.userNeed = result.need;
   appState.userProfileSnapshot = result.memories && result.memories.length
     ? memoryRuntime.getProfileSnapshot()
     : appState.userProfileSnapshot;
-  appState.selectedMemories = result.memories;
+  if (result.memories && result.memories.length) appState.selectedMemories = result.memories;
   appState.knowledgeResults = result.knowledgeResults || [];
   appState.knowledgeAnswer = result.knowledgeAnswer || "";
-  appState.planningResult = result.planningResult || null;
-  appState.restaurantRecommendations = result.restaurantRecommendations || [];
-  appState.dishRecommendations = result.dishRecommendations || [];
+  if (shouldCommitTask) appState.planningResult = result.planningResult || null;
+  if (shouldCommitTask) {
+    appState.restaurantRecommendations = result.restaurantRecommendations || [];
+    appState.dishRecommendations = result.dishRecommendations || [];
+  }
   appState.constraintState = result.constraintAudit || appState.constraintState;
-  if (appState.restaurantRecommendations.length) {
+  if (shouldCommitTask && appState.restaurantRecommendations.length) {
     appState.lastRestaurantRecommendations = appState.restaurantRecommendations.map(summarizeRestaurant);
     appState.seenRestaurantNames = mergeRestaurantNames(appState.seenRestaurantNames, appState.restaurantRecommendations);
     appState.selectedRestaurant = null;
     appState.selectedDish = null;
   }
-  if (appState.dishRecommendations.length) {
+  if (shouldCommitTask && appState.dishRecommendations.length) {
     appState.selectedRestaurant = summarizeRestaurant(appState.dishRecommendations[0].restaurant);
     appState.selectedDish = null;
   }
@@ -1038,7 +1385,9 @@ async function handlePrompt(text) {
     improvedReply: "",
     decisionNotes: [],
     risks: [],
-    nextBestAction: ""
+    nextBestAction: "",
+    replySource: "pending",
+    parseStatus: "pending"
   };
 
   const emptyText = result.status === "needs_clarification"
@@ -1054,6 +1403,57 @@ async function handlePrompt(text) {
   renderPendingActions();
   renderStatePreview();
   await requestLLMReview(text, result, selectedSkills, thinkingMessage, contextualText);
+}
+
+function handleDataSourceBoundary(text, thinkingMessage) {
+  appState.intentResult = {
+    intent: "data_source_boundary",
+    label: "真实数据能力边界",
+    route: "capability_guard",
+    toolName: "",
+    confidence: 1,
+    matchedSignals: ["用户明确要求真实附近或实时配送数据"],
+    slots: { rawText: text },
+    requiredSlots: [],
+    missingSlots: [],
+    clarificationQuestion: "",
+    routeReason: "当前无法核验实时位置和配送信息，需要向用户说明能力边界。"
+  };
+  appState.dialogueState = {
+    ...appState.dialogueState,
+    signals: [...(appState.dialogueState.signals || []), "触发真实数据来源门禁"]
+  };
+  appState.llmState = {
+    mode: "skipped",
+    enabled: false,
+    model: "",
+    summary: "当前无法核验实时地图和商家配送信息，已向用户说明能力边界。",
+    improvedReply: conversationPolicyRuntime.buildDataSourceBoundaryReply(),
+    decisionNotes: ["回复由数据来源门禁生成"],
+    risks: [],
+    nextBestAction: "wait_real_data_provider",
+    replySource: "capability_guard",
+    parseStatus: "not_applicable"
+  };
+  appState.workflowState = {
+    name: "data_source_capability_guard",
+    status: "capability_blocked",
+    currentStep: "complete",
+    route: "capability_guard",
+    intent: "data_source_boundary",
+    assumptions: [],
+    missingSlots: [],
+    clarificationQuestion: "",
+    steps: [
+      { id: "detect_real_data", label: "识别真实数据要求", status: "done" },
+      { id: "check_provider", label: "检查地图和实时商家数据源", status: "done" },
+      { id: "block_unverified_data", label: "说明实时数据能力边界", status: "done" }
+    ]
+  };
+  renderSteps(appState.workflowState.steps.map((step) => step.label));
+  renderLLMState();
+  renderStatePreview();
+  replaceMessage(thinkingMessage, appState.llmState.improvedReply);
 }
 
 async function handleDishSelection(selection, originalText, thinkingMessage) {
@@ -1076,6 +1476,14 @@ async function handleDishSelection(selection, originalText, thinkingMessage) {
     clarificationQuestion: "",
     routeReason: "用户选择了上一轮推荐商品，直接进入短期选择确认，不重新追问需求。"
   };
+  if (intentV2Runtime) {
+    appState.intentResult.semanticFrame = intentV2Runtime.buildSemanticFrame({
+      text: originalText,
+      legacyIntentResult: appState.intentResult,
+      dialogueState: { act: "select_dish", selectedRestaurant: selection.restaurant, selectedDish: selection.dish },
+      previousNeed: appState.userNeed
+    });
+  }
   appState.workflowState = {
     name: "takeout_restaurant_first_workflow",
     status: "dish_selected",
@@ -1101,6 +1509,13 @@ async function handleDishSelection(selection, originalText, thinkingMessage) {
     knowledgeResults: appState.knowledgeResults,
     restaurantRecommendations: [],
     dishRecommendations: [selection],
+    dataSource: {
+      restaurant: "catalog",
+      distance: "estimated",
+      deliveryTime: "estimated",
+      realtime: false
+    },
+    sideEffectNotes: [],
     toolCalls: [],
     workflowState: appState.workflowState
   };
@@ -1136,7 +1551,9 @@ async function handleDishSelection(selection, originalText, thinkingMessage) {
     improvedReply: "",
     decisionNotes: [],
     risks: [],
-    nextBestAction: ""
+    nextBestAction: "",
+    replySource: "pending",
+    parseStatus: "pending"
   };
 
   renderRecommendations({
@@ -1244,7 +1661,7 @@ function buildDishSelectionPayload({ restaurant, dish, matchReasons }) {
         ]
       }
     ],
-    footer: "我已经记住你本轮选择的是这家店的这个商品。当前 Demo 不做购物车和下单，下一步可以继续换商品、换店，或补充新的口味约束。"
+    footer: "我已经记住你本轮选择的是这家店的这个商品。你可以继续换商品、换店，或补充新的口味要求。"
   };
 }
 
@@ -1263,6 +1680,11 @@ function resolveRestaurantSelection(text) {
   if (!restaurant) return text;
   const previousNeed = buildPreviousNeedContext();
   return `${restaurant.name} 有什么最推荐的商品？${previousNeed ? `延续上一轮需求：${previousNeed}。` : ""}原始用户表达：${text}`;
+}
+
+function buildRestaurantSelectionPrompt(restaurant, originalText) {
+  const previousNeed = buildPreviousNeedContext();
+  return `${restaurant.name} 有什么最推荐的商品？${previousNeed ? `延续上一轮需求：${previousNeed}。` : ""}原始用户表达：${originalText}`;
 }
 
 function resolveContextualPrompt(text) {
@@ -1429,7 +1851,9 @@ async function requestLLMReview(text, workflowResult, selectedSkills, thinkingMe
       improvedReply: "",
       decisionNotes: ["本地服务未启动"],
       risks: [],
-      nextBestAction: "start_local_server"
+      nextBestAction: "start_local_server",
+      replySource: "fallback",
+      parseStatus: "not_applicable"
     };
     renderLLMState();
     renderStatePreview();
@@ -1454,7 +1878,9 @@ async function requestLLMReview(text, workflowResult, selectedSkills, thinkingMe
       improvedReply: data.review.improvedReply,
       decisionNotes: data.review.decisionNotes,
       risks: data.error ? [...data.review.risks, `接口错误：${formatModelError(data.error)}`] : data.review.risks,
-      nextBestAction: data.review.nextBestAction
+      nextBestAction: data.review.nextBestAction,
+      replySource: data.review.replySource || "llm",
+      parseStatus: data.review.parseStatus || "unknown"
     };
     renderLLMState();
     renderStatePreview();
@@ -1472,7 +1898,9 @@ async function requestLLMReview(text, workflowResult, selectedSkills, thinkingMe
       improvedReply: "",
       decisionNotes: [error.message],
       risks: ["请确认本地服务是否已启动"],
-      nextBestAction: "check_server"
+      nextBestAction: "check_server",
+      replySource: "fallback",
+      parseStatus: "failed"
     };
     renderLLMState();
     renderStatePreview();
@@ -1495,10 +1923,11 @@ function buildLLMReviewPayload(text, workflowResult, selectedSkills, contextualT
     agentStory: {
       role: "外卖点餐决策助理",
       goal: "帮助用户先选出 3 家最合适餐厅，再在用户选店后推荐 5 个最匹配商品。",
-      safetyBoundary: "本期 Demo 不提供购物车、下单和支付；不能静默保存长期记忆。",
+      safetyBoundary: "当前不提供购物车、下单和支付；不能静默保存长期记忆。",
       rankingPriority: ["忌口和过敏", "配送时间", "店铺距离", "月售销量", "预算", "口味目标", "长期记忆", "用餐场景"]
     },
     agentState: {
+      activeLocation: appState.activeLocation,
       intentResult: workflowResult.intentResult,
       need: workflowResult.need,
       memories: workflowResult.memories,
@@ -1521,6 +1950,8 @@ function buildLLMReviewPayload(text, workflowResult, selectedSkills, contextualT
         contextCompact: appState.contextCompactState
       },
       constraintState: workflowResult.constraintAudit,
+      dataSource: workflowResult.dataSource,
+      sideEffectNotes: workflowResult.sideEffectNotes || [],
       llmIntentState: appState.llmIntentState,
       toolCalls: workflowResult.toolCalls
     }
@@ -1528,35 +1959,42 @@ function buildLLMReviewPayload(text, workflowResult, selectedSkills, contextualT
 }
 
 async function requestLLMIntentParse({ originalText, contextualText }) {
+  const ruleFallbackIntent = intentRouter ? intentRouter.analyze(contextualText) : null;
   const fallback = {
     mode: window.location.protocol === "file:" ? "skipped" : "fallback",
     enabled: false,
     source: "rules",
     error: window.location.protocol === "file:" ? "file 协议下跳过服务端 LLM 意图解析" : "",
-    intentResult: null,
+    intentResult: ruleFallbackIntent,
     rawModelResult: null
   };
 
   if (window.location.protocol === "file:") return fallback;
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
     const response = await fetch("/api/intent-parse", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
+      signal: controller.signal,
       body: JSON.stringify({
         userText: originalText,
         contextualText,
         previousContext: {
+          activeLocation: appState.activeLocation,
           previousNeed: appState.userNeed,
           selectedRestaurant: appState.selectedRestaurant,
           selectedDish: appState.selectedDish,
+          planningResult: appState.planningResult,
           contextCompact: appState.contextCompactState
         },
         userProfile
       })
     });
+    clearTimeout(timeoutId);
     const data = await response.json();
     if (!data.intentResult) return fallback;
     return data;
@@ -1564,7 +2002,8 @@ async function requestLLMIntentParse({ originalText, contextualText }) {
     return {
       ...fallback,
       mode: "error",
-      error: error.message
+      source: "rules_timeout_fallback",
+      error: error.name === "AbortError" ? "LLM 意图解析超过 12 秒，已使用规则兜底" : error.message
     };
   }
 }
@@ -1615,6 +2054,8 @@ async function loadData() {
     userProfile = fallbackUserProfile;
   }
 
+  initializeAddressState();
+
   try {
     const response = await fetch("./data/knowledge-base.json");
     knowledgeBase = await response.json();
@@ -1632,10 +2073,12 @@ async function loadData() {
   subagentRuntime = createSubagentRuntime();
   contextCompactRuntime = createContextCompactRuntime();
   dialogueStateRuntime = createDialogueStateRuntime();
+  conversationPolicyRuntime = createConversationPolicyRuntime();
   appState.hookState = hookRuntime.getState();
   appState.contextCompactState = contextCompactRuntime.getState();
   toolRuntime = createToolRuntime({ restaurants, userProfile, ragRuntime, memoryRuntime, hookRuntime });
   intentRouter = createIntentRouter();
+  intentV2Runtime = createIntentV2Runtime();
   planningRuntime = createPlanningRuntime({ toolRuntime, userProfile });
   skillRuntime = createSkillRuntime();
   appState.skillState.availableSkills = skillRuntime.listSkills();
@@ -1643,12 +2086,164 @@ async function loadData() {
   orderingWorkflow = createOrderingWorkflow({ toolRuntime, userProfile, intentRouter, planningRuntime });
 }
 
-formEl.addEventListener("submit", (event) => {
+function initializeAddressState() {
+  const locations = Array.isArray(userProfile.locations) ? userProfile.locations : [];
+  const defaultAddress = userProfile.defaultLocation && userProfile.defaultLocation.label;
+  const defaultLocation = locations.find((location) => location.address === defaultAddress)
+    || locations.find((location) => location.type === "work")
+    || locations[0]
+    || {
+      id: "loc_default",
+      type: "default",
+      label: "默认地址",
+      address: defaultAddress || "当前地址",
+      lng: userProfile.defaultLocation && userProfile.defaultLocation.lng,
+      lat: userProfile.defaultLocation && userProfile.defaultLocation.lat
+    };
+
+  addressSelectEl.innerHTML = "";
+  locations.forEach((location) => {
+    const option = document.createElement("option");
+    option.value = location.id;
+    option.textContent = `${location.label} · ${location.address}`;
+    addressSelectEl.appendChild(option);
+  });
+  if (!locations.length) {
+    const option = document.createElement("option");
+    option.value = defaultLocation.id;
+    option.textContent = `${defaultLocation.label} · ${defaultLocation.address}`;
+    addressSelectEl.appendChild(option);
+  }
+  applyActiveLocation(defaultLocation);
+}
+
+function applyActiveLocation(location) {
+  appState.activeLocation = { ...location };
+  userProfile.defaultLocation = {
+    ...location,
+    locationLabel: location.label,
+    label: location.address
+  };
+  addressSelectEl.value = location.id;
+}
+
+function clearAddressDependentState() {
+  appState.restaurantRecommendations = [];
+  appState.dishRecommendations = [];
+  appState.lastRestaurantRecommendations = [];
+  appState.seenRestaurantNames = [];
+  appState.selectedRestaurant = null;
+  appState.selectedDish = null;
+  appState.planningResult = null;
+  appState.toolCalls = [];
+  appState.workflowState = {
+    name: "takeout_restaurant_first_workflow",
+    status: "idle",
+    currentStep: "waiting",
+    assumptions: [],
+    missingSlots: appState.userNeed.missingSlots || [],
+    clarificationQuestion: "",
+    steps: []
+  };
+  if (toolRuntime) toolRuntime.resetTrace();
+  recommendationsEl.className = "recommendations empty";
+  recommendationsEl.textContent = "地址已切换，请继续说点餐需求。";
+}
+
+async function loadDeveloperPromptConfig() {
+  if (window.location.protocol === "file:") {
+    promptStatusEl.textContent = "请通过本地服务打开页面后管理 Prompt。";
+    return;
+  }
+  try {
+    const response = await fetch("/api/developer-config");
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    developerPromptConfig = await response.json();
+    systemPromptEditorEl.value = developerPromptConfig.override || "";
+    defaultPromptPreviewEl.textContent = developerPromptConfig.defaultPrompt || "";
+    promptStatusEl.textContent = developerPromptConfig.override
+      ? `当前使用附加指令，最近更新：${formatDeveloperTime(developerPromptConfig.updatedAt)}`
+      : "当前仅使用代码默认 Prompt。";
+  } catch (error) {
+    promptStatusEl.textContent = `Prompt 配置读取失败：${error.message}`;
+  }
+}
+
+async function saveDeveloperPromptConfig({ reset = false } = {}) {
+  const endpoint = reset ? "/api/developer-config/reset" : "/api/developer-config";
+  const method = reset ? "POST" : "PUT";
+  savePromptButtonEl.disabled = true;
+  restorePromptButtonEl.disabled = true;
+  promptStatusEl.textContent = reset ? "正在恢复默认..." : "正在保存...";
+  try {
+    const response = await fetch(endpoint, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: reset ? undefined : JSON.stringify({ override: systemPromptEditorEl.value.trim() })
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message || `HTTP ${response.status}`);
+    developerPromptConfig = result;
+    systemPromptEditorEl.value = result.override || "";
+    defaultPromptPreviewEl.textContent = result.defaultPrompt || "";
+    promptStatusEl.textContent = reset
+      ? "已恢复默认 Prompt，下一次模型调用起生效。"
+      : "已保存，下一次模型调用起生效。";
+  } catch (error) {
+    promptStatusEl.textContent = `保存失败：${error.message}`;
+  } finally {
+    savePromptButtonEl.disabled = false;
+    restorePromptButtonEl.disabled = false;
+  }
+}
+
+function formatDeveloperTime(value) {
+  if (!value) return "未知时间";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-CN", { hour12: false });
+}
+
+developerModeButtonEl.addEventListener("click", () => {
+  setDeveloperMode(developerModeButtonEl.getAttribute("aria-expanded") !== "true");
+});
+
+closeDeveloperButtonEl.addEventListener("click", () => setDeveloperMode(false));
+
+document.querySelectorAll("[data-dev-tab]").forEach((button) => {
+  button.addEventListener("click", () => selectDeveloperTab(button.dataset.devTab));
+});
+
+memorySearchEl.addEventListener("input", renderMemoryCenter);
+memoryTypeFilterEl.addEventListener("change", renderMemoryCenter);
+savePromptButtonEl.addEventListener("click", () => saveDeveloperPromptConfig());
+restorePromptButtonEl.addEventListener("click", () => saveDeveloperPromptConfig({ reset: true }));
+
+addressSelectEl.addEventListener("change", () => {
+  if (!userProfile) return;
+  const location = (userProfile.locations || []).find((item) => item.id === addressSelectEl.value);
+  if (!location || location.id === (appState.activeLocation && appState.activeLocation.id)) return;
+  applyActiveLocation(location);
+  clearAddressDependentState();
+  renderStatePreview();
+  addMessage("agent", `已切换配送地址：${location.label} · ${location.address}。后续推荐会按新地址重新筛选，你可以继续沿用刚才的点餐条件。`);
+});
+
+formEl.addEventListener("submit", async (event) => {
   event.preventDefault();
   const text = inputEl.value.trim();
-  if (!text) return;
+  if (!text || isPromptProcessing) return;
   inputEl.value = "";
-  handlePrompt(text);
+  isPromptProcessing = true;
+  inputEl.disabled = true;
+  formEl.querySelector("button[type='submit']").disabled = true;
+  try {
+    await handlePrompt(text);
+  } finally {
+    isPromptProcessing = false;
+    inputEl.disabled = false;
+    formEl.querySelector("button[type='submit']").disabled = false;
+    inputEl.focus();
+  }
 });
 
 resetButton.addEventListener("click", () => {
@@ -1672,6 +2267,8 @@ resetButton.addEventListener("click", () => {
     budget: null,
     maxDeliveryMinutes: null,
     deliveryTimeStrict: false,
+    budgetStrict: false,
+    budgetScope: "single",
     tasteGoals: [],
     avoidIngredients: [],
     excludedRestaurantNames: [],
@@ -1696,7 +2293,9 @@ resetButton.addEventListener("click", () => {
     improvedReply: "",
     decisionNotes: [],
     risks: [],
-    nextBestAction: ""
+    nextBestAction: "",
+    replySource: "none",
+    parseStatus: "idle"
   };
   appState.llmIntentState = {
     mode: "idle",
@@ -1769,7 +2368,7 @@ resetButton.addEventListener("click", () => {
   renderStatePreview();
   recommendationsEl.className = "recommendations empty";
   recommendationsEl.textContent = "发送一句点餐需求后，这里会出现候选方案。";
-  addMessage("agent", "你好，我是外卖智能点餐助手。你可以先随便说一句需求，比如：20 分钟内送到，清淡一点，预算 35 元左右。");
+  addMessage("agent", buildWelcomeMessage());
 });
 
 pendingActionsEl.addEventListener("click", (event) => {
@@ -1784,5 +2383,12 @@ loadData().then(() => {
   renderLLMState();
   renderPendingActions();
   renderStatePreview();
-  addMessage("agent", "你好，我是外卖智能点餐助手。你可以先随便说一句需求，比如：20 分钟内送到，清淡一点，预算 35 元左右。");
+  loadDeveloperPromptConfig();
+  addMessage("agent", buildWelcomeMessage());
 });
+
+function buildWelcomeMessage() {
+  const location = appState.activeLocation;
+  const addressText = location ? `${location.label} · ${location.address}` : "默认地址";
+  return `你好，我是外卖智能点餐助手。当前配送至：${addressText}。如果地址不对，可以直接在页面顶部切换。你可以说：20 分钟内送到，清淡一点，预算 35 元左右。`;
+}

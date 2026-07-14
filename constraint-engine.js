@@ -3,6 +3,7 @@ function createConstraintEngine() {
     return {
       hard: {
         maxDeliveryMinutes: need.deliveryTimeStrict ? need.maxDeliveryMinutes : null,
+        maxDishPrice: need.budgetStrict ? need.budget : null,
         excludedRestaurantNames: normalizeStringArray(need.excludedRestaurantNames),
         avoidIngredients: normalizeStringArray(need.avoidIngredients),
         tasteMode: getTasteMode(need)
@@ -50,6 +51,10 @@ function createConstraintEngine() {
   function violatesDishHardConstraints(dish, need = {}) {
     const constraints = buildConstraintSet(need).hard;
     const issues = [];
+
+    if (constraints.maxDishPrice && dish.price > constraints.maxDishPrice) {
+      issues.push(`售价 ${dish.price} 元超过硬性预算 ${constraints.maxDishPrice} 元`);
+    }
 
     if (constraints.tasteMode === "light" && isHeavySpicyDish(dish)) {
       issues.push("清淡/低脂需求下不能推荐明显重口商品");
@@ -161,12 +166,24 @@ function isLightOnlyDish(dish) {
 function violatesAvoidRestaurant(restaurant, word) {
   if (!word) return false;
   if (word === "辣") return isHeavySpicyRestaurant(restaurant);
-  return collectRestaurantTerms(restaurant).includes(word);
+  const identityTerms = [
+    restaurant.name,
+    restaurant.category,
+    restaurant.description,
+    ...(restaurant.tags || [])
+  ].join(" ");
+  if (["海鲜", "甲壳类", "鱼类"].includes(word) && /海鲜|鲜虾|小龙虾|鱼/.test(identityTerms)) return true;
+  const dishes = restaurant.dishes || [];
+  return dishes.length > 0 && dishes.every((dish) => violatesAvoidDish(dish, word));
 }
 
 function violatesAvoidDish(dish, word) {
   if (!word) return false;
   if (word === "辣") return isHeavySpicyDish(dish);
+  if (word === "肉") return /肉|鸡|鸭|鱼|虾|排骨|肥肠|鸡翅|鸡腿|鸡胸|鸡丝|鱼片/.test(collectDishTerms(dish));
+  if (word === "蛋") return /蛋/.test(collectDishTerms(dish));
+  if (word === "海鲜") return /海鲜|虾|鱼|甲壳/.test(collectDishTerms(dish));
+  if (word === "鱼类") return /鱼/.test(collectDishTerms(dish));
   return collectDishTerms(dish).includes(word);
 }
 

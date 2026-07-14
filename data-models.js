@@ -1,4 +1,13 @@
 const TakeoutDataModel = {
+  activeLocation: {
+    id: "常用地址 ID",
+    type: "work | home | default",
+    label: "用户可识别的地址名称，例如工作地、住处",
+    address: "当前实际配送地址",
+    lng: "经度",
+    lat: "纬度",
+    deliveryPreference: "该地址对应的配送偏好"
+  },
   intentResult: {
     intent: "意图名称，例如 order_recommendation",
     route: "路由类型：llm_direct | rag_lookup | single_tool | workflow | planning | memory_write | clarify",
@@ -29,11 +38,21 @@ const TakeoutDataModel = {
     peopleCount: "用餐人数",
     totalBudget: "总预算",
     perPersonBudget: "人均预算",
+    budgetScope: "total | per_person，预算数字的适用范围",
+    budgetSummary: "面向用户复述的预算计算，例如每人 150 元、5 人总预算 750 元",
     steps: "规划步骤",
     participantPlans: "每个成员的推荐计划",
     restaurantCandidates: "复杂需求下的候选餐厅",
     dishCandidates: "用户选店后的候选商品",
     summary: "规划摘要"
+  },
+  participantNeed: {
+    participantId: "参与者 ID",
+    label: "参与者称呼，例如我、老婆、孩子",
+    tasteGoals: "该参与者自己的口味目标",
+    avoidIngredients: "该参与者自己的忌口和过敏原",
+    budget: "该参与者可用预算",
+    constraints: "供规划和展示使用的成员级约束"
   },
   safetyState: {
     pendingActions: "等待用户确认的动作",
@@ -92,7 +111,9 @@ const TakeoutDataModel = {
     improvedReply: "大模型润色后的用户回复",
     decisionNotes: "大模型给出的关键判断说明",
     risks: "大模型识别出的风险和缺口",
-    nextBestAction: "下一步动作建议"
+    nextBestAction: "下一步动作建议",
+    replySource: "最终回复来源：llm | structured_renderer | capability_guard | fallback",
+    parseStatus: "大模型结果解析状态：success | repaired | failed | skipped"
   },
   confirmationAction: {
     id: "动作 ID",
@@ -109,6 +130,8 @@ const TakeoutDataModel = {
     budget: "数字，预算上限",
     maxDeliveryMinutes: "数字，可接受配送时间",
     deliveryTimeStrict: "布尔值，是否把配送时间视为硬性约束",
+    budgetStrict: "布尔值，是否把预算视为不可超过的硬性约束",
+    budgetScope: "single | total | per_person | unknown",
     tasteGoals: "数组，想要的口味目标",
     avoidIngredients: "数组，忌口或不想吃的内容",
     excludedRestaurantNames: "数组，本轮推荐需要排除的餐厅，例如上一批已展示餐厅",
@@ -128,6 +151,8 @@ const TakeoutDataModel = {
     geo: "经纬度",
     monthlySales: "月售销量",
     coreItems: "核心餐品",
+    displayCoreItems: "按本轮过敏原和忌口过滤后，可安全展示的核心餐品",
+    dataSource: "数据来源，例如 catalog | merchant | estimated | realtime",
     tags: "标签"
   },
   dish: {

@@ -1,0 +1,236 @@
+[
+  {
+    "id": "BI-01",
+    "scenario": "基础推荐与连续决策",
+    "resetBefore": true,
+    "query": "20分钟内送到，清淡一点，预算35元。",
+    "expectedIntent": "点餐推荐/获取点餐推荐",
+    "expectedBehavior": "返回满足时间、口味和预算约束的餐厅候选"
+  },
+  {
+    "id": "BI-02",
+    "scenario": "基础推荐与连续决策",
+    "query": "还是想吃热乎一点的，预算不变。",
+    "expectedIntent": "点餐推荐/获取点餐推荐",
+    "expectedDialogueAct": "修改条件",
+    "expectedBehavior": "继承35元预算和20分钟约束，使用热食条件重新推荐"
+  },
+  {
+    "id": "BI-03",
+    "scenario": "基础推荐与连续决策",
+    "query": "这三家都不太想吃，还有别的吗？",
+    "expectedIntent": "点餐推荐/获取点餐推荐",
+    "expectedDialogueAct": "请求替换",
+    "expectedBehavior": "排除已经展示的餐厅并返回新候选"
+  },
+  {
+    "id": "BI-04",
+    "scenario": "基础推荐与连续决策",
+    "query": "第二家。",
+    "expectedIntent": "点餐选择/选择餐厅",
+    "expectedDialogueAct": "指代选择",
+    "expectedBehavior": "绑定当前第二家餐厅并展示该店菜品"
+  },
+  {
+    "id": "BI-05",
+    "scenario": "基础推荐与连续决策",
+    "query": "第二个菜。",
+    "expectedIntent": "点餐选择/选择菜品",
+    "expectedDialogueAct": "指代选择",
+    "expectedBehavior": "绑定当前菜单第二个菜并确认选择结果"
+  },
+  {
+    "id": "BI-06",
+    "scenario": "餐厅搜索与菜单查询",
+    "resetBefore": true,
+    "query": "附近有没有25分钟内能送到的粥店？",
+    "expectedIntent": "餐厅与菜单查询/查询餐厅",
+    "expectedBehavior": "搜索符合粥类和配送时间的餐厅"
+  },
+  {
+    "id": "BI-07",
+    "scenario": "餐厅搜索与菜单查询",
+    "query": "白粥小馆的配送时间、距离和月销量怎么样？",
+    "expectedIntent": "餐厅与菜单查询/查询餐厅",
+    "expectedBehavior": "返回指定餐厅的基础信息，不重新推荐无关餐厅"
+  },
+  {
+    "id": "BI-08",
+    "scenario": "餐厅搜索与菜单查询",
+    "query": "白粥小馆有什么菜？",
+    "expectedIntent": "餐厅与菜单查询/查询菜单或菜品",
+    "expectedBehavior": "返回白粥小馆的菜品"
+  },
+  {
+    "id": "BI-09",
+    "scenario": "餐厅搜索与菜单查询",
+    "query": "我选白粥小馆。",
+    "expectedIntent": "点餐选择/选择餐厅",
+    "expectedBehavior": "选中白粥小馆并展示匹配菜品"
+  },
+  {
+    "id": "BI-10",
+    "scenario": "餐厅搜索与菜单查询",
+    "query": "就要鸡丝白粥。",
+    "expectedIntent": "点餐选择/选择菜品",
+    "expectedBehavior": "选中鸡丝白粥，不重新发起餐厅推荐"
+  },
+  {
+    "id": "BI-11",
+    "scenario": "配送地址切换",
+    "resetBefore": true,
+    "query": "把配送地址切换到住处。",
+    "expectedIntent": "配送地址管理/切换配送地址",
+    "expectedBehavior": "切换到住处并使旧候选失效"
+  },
+  {
+    "id": "BI-12",
+    "scenario": "配送地址切换",
+    "query": "地址换好了，推荐30分钟内能到的烧烤，人均60元。",
+    "expectedIntent": "点餐推荐/获取点餐推荐",
+    "expectedBehavior": "按住处、烧烤、30分钟和人均60元推荐"
+  },
+  {
+    "id": "BI-13",
+    "scenario": "配送地址切换",
+    "query": "改回工作地，刚才的口味和预算不变。",
+    "expectedIntent": "配送地址管理/切换配送地址",
+    "expectedDialogueAct": "切换地址并继承条件",
+    "expectedBehavior": "切回工作地并按原烧烤和人均60元条件重新计算候选"
+  },
+  {
+    "id": "BI-14",
+    "scenario": "配送地址切换",
+    "query": "现在送到家里地址。",
+    "expectedIntent": "配送地址管理/切换配送地址",
+    "expectedBehavior": "识别家里地址并更新本次配送上下文"
+  },
+  {
+    "id": "BI-15",
+    "scenario": "饮食知识咨询",
+    "resetBefore": true,
+    "query": "胃不舒服的时候，点什么外卖更合适？",
+    "expectedIntent": "饮食知识咨询/查询饮食知识",
+    "expectedBehavior": "基于饮食知识回答，不直接裸露知识库原文"
+  },
+  {
+    "id": "BI-16",
+    "scenario": "饮食知识咨询",
+    "resetBefore": true,
+    "query": "减脂期间点外卖，主食和蛋白质怎么搭配？",
+    "expectedIntent": "饮食知识咨询/查询饮食知识",
+    "expectedBehavior": "回答减脂外卖的搭配原则"
+  },
+  {
+    "id": "BI-17",
+    "scenario": "饮食知识咨询",
+    "resetBefore": true,
+    "query": "川菜是不是都很辣，有没有相对清淡的选择？",
+    "expectedIntent": "饮食知识咨询/查询饮食知识",
+    "expectedBehavior": "解释川菜口味并给出相对清淡的选择"
+  },
+  {
+    "id": "BI-18",
+    "scenario": "饮食知识咨询",
+    "resetBefore": true,
+    "query": "晚上吃烧烤怎样点会少油一点？",
+    "expectedIntent": "饮食知识咨询/查询饮食知识",
+    "expectedBehavior": "回答烧烤点餐方法，而不是直接推荐餐厅"
+  },
+  {
+    "id": "BI-19",
+    "scenario": "长期偏好管理",
+    "resetBefore": true,
+    "query": "请记住，我以后都不吃香菜。",
+    "expectedIntent": "用户偏好管理/更新长期偏好",
+    "expectedBehavior": "生成长期记忆候选并等待用户确认"
+  },
+  {
+    "id": "BI-20",
+    "scenario": "长期偏好管理",
+    "resetBefore": true,
+    "query": "以后默认少辣、少油。",
+    "expectedIntent": "用户偏好管理/更新长期偏好",
+    "expectedBehavior": "识别稳定口味偏好并等待确认"
+  },
+  {
+    "id": "BI-21",
+    "scenario": "长期偏好管理",
+    "resetBefore": true,
+    "query": "我对花生过敏，请帮我记住。",
+    "expectedIntent": "用户偏好管理/更新长期偏好",
+    "expectedBehavior": "将花生过敏作为敏感长期记忆候选并等待确认"
+  },
+  {
+    "id": "BI-22",
+    "scenario": "长期偏好管理",
+    "query": "刚才说错了，我只是今天不吃花生，不要记成长期偏好。",
+    "expectedIntent": "用户偏好管理/更新长期偏好",
+    "expectedDialogueAct": "纠正记忆",
+    "expectedBehavior": "撤销待确认长期记忆，仅保留为本次任务约束"
+  },
+  {
+    "id": "BI-23",
+    "scenario": "多人约束与预算纠正",
+    "resetBefore": true,
+    "query": "5个人吃午饭，每人150元，30分钟内送到，一个人吃素，其他人都可以。",
+    "expectedIntent": "点餐推荐/获取点餐推荐",
+    "expectedBehavior": "理解5人、人均150元、30分钟和一人素食并推荐餐厅"
+  },
+  {
+    "id": "BI-24",
+    "scenario": "多人约束与预算纠正",
+    "query": "错了，不是每人150，是5个人合计150元。",
+    "expectedIntent": "点餐推荐/获取点餐推荐",
+    "expectedDialogueAct": "纠正理解",
+    "expectedBehavior": "将预算范围从人均改为总预算，保留其余条件"
+  },
+  {
+    "id": "BI-25",
+    "scenario": "多人约束与预算纠正",
+    "query": "还有一位不吃辣，其他条件不变。",
+    "expectedIntent": "点餐推荐/获取点餐推荐",
+    "expectedDialogueAct": "补充条件",
+    "expectedBehavior": "保留5人、总预算150元和30分钟，新增一人不吃辣"
+  },
+  {
+    "id": "BI-26",
+    "scenario": "多人约束与预算纠正",
+    "query": "这几家不合适，换一批，而且不要重复。",
+    "expectedIntent": "点餐推荐/获取点餐推荐",
+    "expectedDialogueAct": "请求替换",
+    "expectedBehavior": "排除已展示餐厅，保留多人约束并返回新候选"
+  },
+  {
+    "id": "BI-27",
+    "scenario": "多人约束与预算纠正",
+    "query": "第一家。",
+    "expectedIntent": "点餐选择/选择餐厅",
+    "expectedDialogueAct": "指代选择",
+    "expectedBehavior": "选中最新候选第一家并展示菜品"
+  },
+  {
+    "id": "BI-28",
+    "scenario": "指定菜品与菜单查询",
+    "resetBefore": true,
+    "query": "番茄暖汤饭有没有不超过30元的清淡菜？",
+    "expectedIntent": "餐厅与菜单查询/查询菜单或菜品",
+    "expectedBehavior": "只查询番茄暖汤饭并筛选30元内清淡菜品"
+  },
+  {
+    "id": "BI-29",
+    "scenario": "指定菜品与菜单查询",
+    "resetBefore": true,
+    "query": "清和蒸菜馆最值得点的5个菜是什么？",
+    "expectedIntent": "餐厅与菜单查询/查询菜单或菜品",
+    "expectedBehavior": "返回清和蒸菜馆的菜品推荐，不推荐其他餐厅"
+  },
+  {
+    "id": "BI-30",
+    "scenario": "指定菜品与菜单查询",
+    "resetBefore": true,
+    "query": "我想吃番茄鸡肉汤饭，哪里有？",
+    "expectedIntent": "餐厅与菜单查询/查询菜单或菜品",
+    "expectedBehavior": "围绕指定菜品查找所属餐厅或菜单，不泛化为无关推荐"
+  }
+]

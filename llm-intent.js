@@ -49,6 +49,7 @@ const LLM_INTENT_SCHEMA = {
         rawText: { type: "string" },
         mealGoal: { type: "boolean" },
         budget: { type: ["number", "null"] },
+        budgetScope: { type: "string", enum: ["single", "total", "per_person", "unknown"] },
         maxDeliveryMinutes: { type: ["number", "null"] },
         tasteGoals: { type: "array", items: { type: "string" } },
         avoidIngredients: { type: "array", items: { type: "string" } },
@@ -113,6 +114,7 @@ function buildIntentParsePrompt({ userText, contextualText, previousContext = {}
       "你要识别用户到底是在点餐推荐、找餐厅、查某家店菜单、饮食知识问答、更新长期记忆、复杂多人规划、询问模型身份，还是闲聊/未知。",
       "当前输入的明确约束优先级最高，高于长期用户画像和历史偏好。",
       "如果用户说“还是、继续、和刚才一样、改成、换成、算了”等，要结合 contextualText 和 previousContext 继承未被否定的预算、配送时间、口味和忌口。",
+      "budgetScope 必须区分 single、total、per_person、unknown。用户说合计/总共表示 total，说人均/每人/每个人表示 per_person；短句纠正也要结合上下文继承预算数字和人数。",
       "如果用户明确说清淡、少油、低脂、轻食，就不要把 tasteGoals 解析成辣或重口味。",
       "如果用户明确说重口味、辣、麻辣、川菜、湘菜、烧烤、小龙虾，就把 tasteGoals 解析成辣或重口味，但如果同时说不要辣，要在 conflicts 里说明冲突。",
       "如果用户询问“你是什么模型、你是谁、你能做什么”，intent 必须是 agent_identity，不要路由到知识库。",
@@ -154,8 +156,6 @@ function buildFallbackIntentParse({ ruleIntent, userText, reason = "" }) {
 
 function normalizeLLMIntentParse({ parsed, ruleIntent, userText }) {
   const modelIntent = ALLOWED_INTENTS.includes(parsed.intent) ? parsed.intent : ruleIntent.intent;
-  const safeIntent = shouldKeepRuleBoundary(ruleIntent) ? ruleIntent.intent : modelIntent;
-  const route = ROUTE_BY_INTENT[safeIntent] || ruleIntent.route || "clarify";
   const ruleSlots = ruleIntent.slots || {};
   const parsedSlots = parsed.slots && typeof parsed.slots === "object" ? parsed.slots : {};
   const slots = normalizeSlots({
@@ -164,10 +164,18 @@ function normalizeLLMIntentParse({ parsed, ruleIntent, userText }) {
     rawText: userText || parsedSlots.rawText || ruleSlots.rawText || ""
   });
   repairSlotsFromRawText(slots, userText || "");
+  let safeIntent = shouldKeepRuleBoundary(ruleIntent) ? ruleIntent.intent : modelIntent;
+  if (slots.mealGoal && safeIntent === "preference_update") safeIntent = "order_recommendation";
+  if (slots.mealGoal && slots.peopleCount > 1) safeIntent = "complex_order_planning";
+  const route = ROUTE_BY_INTENT[safeIntent] || ruleIntent.route || "clarify";
   const modelMissingSlots = normalizeStringArray(parsed.missingSlots);
-  const missingSlots = modelMissingSlots.length || safeIntent !== ruleIntent.intent
-    ? modelMissingSlots
-    : normalizeStringArray(ruleIntent.missingSlots);
+  const missingSlots = validateMissingSlots({
+    intent: safeIntent,
+    slots,
+    userText,
+    modelMissingSlots,
+    ruleMissingSlots: normalizeStringArray(ruleIntent.missingSlots)
+  });
   const confidence = clampConfidence(parsed.confidence, ruleIntent.confidence || 0.55);
   const label = getIntentLabel(safeIntent, ruleIntent.label);
 
@@ -179,7 +187,7 @@ function normalizeLLMIntentParse({ parsed, ruleIntent, userText }) {
     confidence,
     matchedSignals: [
       `LLM 意图识别：${parsed.reasoning || "模型返回结构化意图"}`,
-      ...(normalizeStringArray(parsed.conflicts).map((item) => `冲突提示：${item}`))
+      ...(normalizeConflictArray(parsed.conflicts).map((item) => `冲突提示：${item}`))
     ],
     slots,
     requiredSlots: Array.isArray(ruleIntent.requiredSlots) ? ruleIntent.requiredSlots : [],
@@ -220,13 +228,14 @@ function extractJsonObject(text) {
 }
 
 function normalizeSlots(slots) {
-  return {
+  const normalized = {
     rawText: String(slots.rawText || ""),
     mealGoal: Boolean(slots.mealGoal),
     budget: normalizeNumberOrNull(slots.budget),
+    budgetScope: normalizeBudgetScope(slots.budgetScope),
     maxDeliveryMinutes: normalizeNumberOrNull(slots.maxDeliveryMinutes),
     tasteGoals: normalizeStringArray(slots.tasteGoals),
-    avoidIngredients: normalizeStringArray(slots.avoidIngredients),
+    avoidIngredients: normalizeAvoidIngredientSlots(slots.avoidIngredients, slots.rawText),
     peopleCount: normalizeNumberOrDefault(slots.peopleCount, 1),
     mealContext: String(slots.mealContext || "工作餐"),
     cuisine: String(slots.cuisine || ""),
@@ -241,9 +250,12 @@ function normalizeSlots(slots) {
     quantity: normalizeNumberOrNull(slots.quantity),
     constraints: normalizeStringArray(slots.constraints)
   };
+  return normalized;
 }
 
 function repairSlotsFromRawText(slots, rawText) {
+  if (/人均|每人|每个人|一人一共|按人(?:头)?算|一个[^，。；]{0,10}预算/.test(rawText)) slots.budgetScope = "per_person";
+  if (/总预算|合计|总共|一共|全部加起来/.test(rawText)) slots.budgetScope = "total";
   if (/清淡|少油|不油|低脂|轻食|暖胃/.test(rawText) && !slots.tasteGoals.includes("清淡")) {
     slots.tasteGoals.push("清淡");
   }
@@ -259,6 +271,48 @@ function repairSlotsFromRawText(slots, rawText) {
   if (/不吃香菜|不要香菜|别香菜/.test(rawText) && !slots.avoidIngredients.includes("香菜")) {
     slots.avoidIngredients.push("香菜");
   }
+  const avoidTerms = ["花生", "鸡蛋", "蛋", "羊肉", "海鲜", "鱼类", "猪肉", "鸡肉"];
+  avoidTerms.forEach((word) => {
+    const allergy = /过敏/.test(rawText) && rawText.includes(word);
+    const directAvoid = new RegExp(`(?:不要|不吃|不能吃|完全不吃|避开)[^，。；]{0,4}${word}`).test(rawText);
+    if ((allergy || directAvoid) && !slots.avoidIngredients.includes(word)) slots.avoidIngredients.push(word);
+  });
+  if (/严格素食|纯素|全素|无肉无蛋|不要肉也不要蛋/.test(rawText)) {
+    ["肉", "蛋", "海鲜", "鱼类"].forEach((word) => {
+      if (!slots.avoidIngredients.includes(word)) slots.avoidIngredients.push(word);
+    });
+  }
+  slots.avoidIngredients = normalizeAvoidIngredientSlots(slots.avoidIngredients, rawText);
+}
+
+function normalizeBudgetScope(value) {
+  return ["single", "total", "per_person", "unknown"].includes(value) ? value : "unknown";
+}
+
+function normalizeAvoidIngredientSlots(value, rawText = "") {
+  const items = normalizeStringArray(value).map((item) => item === "鸡蛋" ? "蛋" : item);
+  const normalized = [...new Set(items)];
+  const hasExplicitGenericMeatAvoid = /(?:不要|不吃|不能吃|避开)(?:所有|任何|全部)?肉(?:类)?|无肉|严格素食|纯素|全素/.test(rawText);
+  const hasSpecificMeatAvoid = normalized.some((item) => ["羊肉", "牛肉", "猪肉", "鸡肉", "鱼类", "海鲜"].includes(item));
+  return normalized.filter((item) => item !== "肉" || hasExplicitGenericMeatAvoid || !hasSpecificMeatAvoid);
+}
+
+function validateMissingSlots({ intent, slots, userText, modelMissingSlots, ruleMissingSlots }) {
+  if (["agent_identity", "food_knowledge_query", "restaurant_search", "menu_lookup"].includes(intent)) return [];
+  if (intent === "complex_order_planning") return [];
+  if (intent !== "order_recommendation") return modelMissingSlots.length ? modelMissingSlots : ruleMissingSlots;
+  if (/随便(?:吃|点|来)?|吃什么都行|什么都行|口味都行|不知道吃什么/.test(userText) && !/别问|不要问|别问我/.test(userText)) return ["preferenceAnchor"];
+  if (slots.mealGoal || slots.budget || slots.maxDeliveryMinutes || slots.tasteGoals.length || slots.avoidIngredients.length || slots.cuisine || slots.healthGoal) return [];
+  return modelMissingSlots.length ? modelMissingSlots : ruleMissingSlots;
+}
+
+function normalizeConflictArray(value) {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => {
+    if (typeof item === "string") return item;
+    if (item && typeof item === "object") return item.reason || item.message || JSON.stringify(item);
+    return String(item || "");
+  }).filter(Boolean);
 }
 
 function normalizeStringArray(value) {

@@ -28,18 +28,43 @@ const AGENT_REVIEW_SCHEMA = {
   required: ["summary", "improvedReply", "decisionNotes", "risks", "nextBestAction"]
 };
 
-function buildAgentReviewPrompt({ userText, agentState, selectedSkills, agentStory, modelRuntime = {} }) {
+function buildAgentReviewPrompt({
+  userText,
+  agentState,
+  selectedSkills,
+  agentStory,
+  modelRuntime = {},
+  systemPromptOverride = ""
+}) {
+  const defaultPrompt = buildDefaultSystemPrompt(modelRuntime);
+  const normalizedOverride = typeof systemPromptOverride === "string" ? systemPromptOverride.trim() : "";
+
+  return {
+    system: normalizedOverride
+      ? `${defaultPrompt}\n\n开发者附加指令：\n${normalizedOverride}`
+      : defaultPrompt,
+    user: JSON.stringify({
+      task: "review_takeout_agent_result",
+      userText,
+      selectedSkills,
+      agentStory,
+      modelRuntime,
+      agentState
+    }, null, 2)
+  };
+}
+
+function buildDefaultSystemPrompt(modelRuntime = {}) {
   const providerName = formatProviderName(modelRuntime.provider);
   const modelName = modelRuntime.model || "未配置模型";
 
-  return {
-    system: [
+  return [
       "你是外卖点餐 Agent 的大模型中枢，也是唯一面向用户生成最终回复的模块。",
       "规则 Workflow、RAG、Memory、Tools 和 Skills 只提供内部状态、候选资料和工具结果；你必须基于它们综合判断后回复用户。",
       "禁止把知识库内容原样贴给用户，禁止用“我查了知识库”“参考知识库”作为回复开头，除非用户明确询问资料来源。",
-      `如果用户询问你是什么模型、你是谁、你能做什么，直接回答当前系统接入了 ${providerName} 的 ${modelName} 作为大模型中枢，同时这是一个外卖点餐 Agent Demo。`,
-      "如果配送时间来自 demo 餐厅数据，必须明确说这是模拟数据或商家标注，不能说成真实高德地图测算结果。",
-      "本期 Demo 没有购物车、下单和支付功能。不要生成购物车草稿，不要要求用户确认下单。",
+      `如果用户询问你是什么模型、你是谁、你能做什么，直接回答当前系统使用 ${providerName} 的 ${modelName} 提供语言理解能力。`,
+      "配送时间统一表达为预计配送时间，不声称来自地图实时测算。",
+      "当前不提供购物车、下单和支付功能。不要生成购物车草稿，不要要求用户确认下单。",
       "点餐主流程分两步：第一步只推荐 3 家最合适的餐厅；用户选定餐厅后，第二步再推荐该店 5 个最匹配商品。",
       "当 agentState.restaurantRecommendations 有数据且 dishRecommendations 为空时，回复里重点展示 3 家餐厅，并引导用户选择第几家或输入店名。",
       "当 agentState.dishRecommendations 有数据时，回复里展示 5 个商品，包含价格、规格、月销量和简短描述。",
@@ -52,16 +77,7 @@ function buildAgentReviewPrompt({ userText, agentState, selectedSkills, agentSto
       "improvedReply 必须是给用户看的中文纯文本，可以用换行分段，但不要使用 Markdown 符号，例如 **、#、-、*、`、表格。",
       "餐厅或商品推荐请用清晰标题和自然分行表达，例如：推荐餐厅；1. 店名；配送约...；核心餐品...；匹配原因...。",
       "输出必须符合给定 JSON Schema，不要输出 Markdown。"
-    ].join("\n"),
-    user: JSON.stringify({
-      task: "review_takeout_agent_result",
-      userText,
-      selectedSkills,
-      agentStory,
-      modelRuntime,
-      agentState
-    }, null, 2)
-  };
+    ].join("\n");
 }
 
 function buildFallbackReview({ userText, agentState, selectedSkills, modelRuntime = {} }) {
@@ -74,7 +90,7 @@ function buildFallbackReview({ userText, agentState, selectedSkills, modelRuntim
   if (isModelIdentityQuestion(userText, agentState)) {
     return {
       summary: "用户询问模型身份，当前可由本地配置直接回答。",
-      improvedReply: `当前这个外卖点餐 Agent Demo 配置的大模型中枢是 ${providerName} 的 ${modelName}。我会用它来整合意图识别、工具调用、知识库、长期记忆和推荐结果，生成最终回复。`,
+      improvedReply: `当前使用 ${providerName} 的 ${modelName} 提供语言理解能力，并结合你的需求、偏好和餐厅信息生成推荐。`,
       decisionNotes: [
         `当前模型供应商：${providerName}`,
         `当前模型：${modelName}`,
@@ -114,6 +130,7 @@ function formatProviderName(provider) {
 
 module.exports = {
   AGENT_REVIEW_SCHEMA,
+  buildDefaultSystemPrompt,
   buildAgentReviewPrompt,
   buildFallbackReview
 };

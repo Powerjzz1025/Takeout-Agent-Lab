@@ -1,5 +1,5 @@
 {
-  "userId": "demo_user_zhangsan",
+  "userId": "user_zhangsan",
   "displayName": "张三",
   "profile": {
     "identity": "互联网公司高级产品经理",
@@ -16,7 +16,7 @@
     "familyIncomeMonthly": "约 45000 元",
     "workStyle": "工作节奏快，通勤时间长，午餐常依赖公司附近快餐或外卖",
     "healthFocus": ["控制体重", "保持饱腹", "减少加班夜宵负担"],
-    "privacyLevel": "demo_profile"
+    "privacyLevel": "standard_profile"
   },
   "defaultLocation": {
     "label": "北京市海淀区中关村大街理想国际大厦",

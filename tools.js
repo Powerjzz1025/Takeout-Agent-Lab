@@ -1,4 +1,21 @@
 function createToolRuntime({ restaurants, userProfile, ragRuntime, memoryRuntime, hookRuntime = null }) {
+  const locationEstimates = {
+    loc_home: {
+      r001: { deliveryMinutes: 42, distanceKm: 5.8 },
+      r002: { deliveryMinutes: 45, distanceKm: 6.4 },
+      r003: { deliveryMinutes: 19, distanceKm: 1.1 },
+      r004: { deliveryMinutes: 35, distanceKm: 3.8 },
+      r005: { deliveryMinutes: 26, distanceKm: 2.4 },
+      r006: { deliveryMinutes: 41, distanceKm: 5.2 },
+      r007: { deliveryMinutes: 29, distanceKm: 3.0 },
+      r008: { deliveryMinutes: 38, distanceKm: 4.4 },
+      r009: { deliveryMinutes: 36, distanceKm: 4.0 },
+      r010: { deliveryMinutes: 34, distanceKm: 3.6 },
+      r011: { deliveryMinutes: 37, distanceKm: 4.1 },
+      r012: { deliveryMinutes: 32, distanceKm: 3.2 },
+      r013: { deliveryMinutes: 39, distanceKm: 4.8 }
+    }
+  };
   const toolCalls = [];
   const constraintEngine = typeof createConstraintEngine === "function"
     ? createConstraintEngine()
@@ -41,10 +58,16 @@ function createToolRuntime({ restaurants, userProfile, ragRuntime, memoryRuntime
   function searchRestaurants({ need, location }) {
     const maxDeliveryBuffer = isStrictDeliveryTime(need) ? 0 : 15;
     const results = restaurants
-      .map((restaurant) => ({
+      .map((restaurant) => {
+        const estimate = getLocationEstimate(restaurant, location);
+        return {
         ...restaurant,
+        ...estimate,
+        deliveryLocationId: location && location.id,
+        deliveryLocationLabel: location && (location.locationLabel || location.address || location.label),
         matchTags: restaurant.tags.filter((tag) => getNeedTerms(need).includes(tag))
-      }))
+      };
+      })
       .filter((restaurant) => restaurant.deliveryMinutes <= need.maxDeliveryMinutes + maxDeliveryBuffer)
       .filter((restaurant) => !isExcludedRestaurant(restaurant, need))
       .filter((restaurant) => !constraintEngine || !constraintEngine.violatesRestaurantHardConstraints(restaurant, need).length)
@@ -60,13 +83,38 @@ function createToolRuntime({ restaurants, userProfile, ragRuntime, memoryRuntime
     return results;
   }
 
+  function getLocationEstimate(restaurant, location) {
+    const locationId = location && location.id
+      ? location.id
+      : /常营|保利嘉园/.test(location && (location.address || location.label) || "")
+        ? "loc_home"
+        : "loc_work";
+    return locationEstimates[locationId] && locationEstimates[locationId][restaurant.id]
+      ? locationEstimates[locationId][restaurant.id]
+      : { deliveryMinutes: restaurant.deliveryMinutes, distanceKm: restaurant.distanceKm };
+  }
+
   function rankRestaurants({ need, candidateRestaurants, memories }) {
     const scored = candidateRestaurants
       .map((restaurant) => {
         const score = scoreRestaurant(restaurant, need, memories);
+        const safeDisplayDishes = (restaurant.dishes || [])
+          .filter((dish) => !violatesAvoidDish(dish, need.avoidIngredients || []))
+          .sort((a, b) => b.monthlySales - a.monthlySales)
+          .slice(0, 3);
+        const affordableDishes = (restaurant.dishes || []).filter((dish) =>
+          dish.price <= need.budget && !violatesAvoidDish(dish, need.avoidIngredients || [])
+        );
         return {
           ...restaurant,
           score,
+          displayCoreItems: need.avoidIngredients && need.avoidIngredients.length
+            ? safeDisplayDishes.map((dish) => dish.name)
+            : [...(restaurant.coreItems || [])],
+          startingPrice: affordableDishes.length
+            ? Math.min(...affordableDishes.map((dish) => dish.price))
+            : Math.min(...(restaurant.dishes || []).map((dish) => dish.price)),
+          affordableDishCount: affordableDishes.length,
           matchReasons: buildRestaurantReasons(restaurant, need, memories)
         };
       });
@@ -139,7 +187,7 @@ function createToolRuntime({ restaurants, userProfile, ragRuntime, memoryRuntime
         score: scoreDish(restaurant, dish, need, memories),
         matchReasons: buildDishReasons(restaurant, dish, need, memories)
       }))
-      .filter((item) => item.dish.price <= need.budget + 15)
+      .filter((item) => item.dish.price <= need.budget + (need.budgetStrict ? 0 : 15))
       .filter((item) => !constraintEngine || !constraintEngine.violatesDishHardConstraints(item.dish, need).length);
     const safeByAvoid = need.avoidIngredients && need.avoidIngredients.length
       ? scored.filter((item) => !violatesAvoidDish(item.dish, need.avoidIngredients))
@@ -288,6 +336,10 @@ function createToolRuntime({ restaurants, userProfile, ragRuntime, memoryRuntime
     if (restaurant.deliveryMinutes > need.maxDeliveryMinutes) reasons.push(`配送约 ${restaurant.deliveryMinutes} 分钟，略超 ${need.maxDeliveryMinutes} 分钟要求`);
     if (restaurant.distanceKm <= 2) reasons.push(`距离约 ${restaurant.distanceKm}km`);
     if (restaurant.monthlySales >= 6000) reasons.push(`月售 ${restaurant.monthlySales}`);
+    const affordableCount = (restaurant.dishes || []).filter((dish) =>
+      dish.price <= need.budget && !violatesAvoidDish(dish, need.avoidIngredients || [])
+    ).length;
+    if (affordableCount) reasons.push(`店内 ${affordableCount} 个商品不超过 ${need.budget} 元`);
     getNeedTerms(need).forEach((term) => {
       if (restaurant.tags.includes(term) && !reasons.includes(`匹配${term}`)) reasons.push(`匹配${term}`);
     });
@@ -341,7 +393,9 @@ function createToolRuntime({ restaurants, userProfile, ragRuntime, memoryRuntime
     const timeEligible = isStrictDeliveryTime(need)
       ? scored.filter((restaurant) => restaurant.deliveryMinutes <= need.maxDeliveryMinutes)
       : scored;
-    const notExcluded = timeEligible.filter((restaurant) => !isExcludedRestaurant(restaurant, need));
+    const notExcluded = timeEligible
+      .filter((restaurant) => !isExcludedRestaurant(restaurant, need))
+      .filter((restaurant) => !need.budgetStrict || restaurant.affordableDishCount > 0);
     if (shouldPreferLightFood(need)) {
       return notExcluded.filter((restaurant) => supportsLightRestaurant(restaurant) && !isHeavySpicyRestaurant(restaurant));
     }
@@ -352,7 +406,7 @@ function createToolRuntime({ restaurants, userProfile, ragRuntime, memoryRuntime
   }
 
   function getRestaurantPool({ scored, eligible, need }) {
-    if (isStrictDeliveryTime(need)) return eligible;
+    if (isStrictDeliveryTime(need) || need.budgetStrict) return eligible;
     if ((shouldPreferLightFood(need) || shouldPreferHeavyFood(need)) && eligible.length) return eligible;
     const notExcluded = scored.filter((restaurant) => !isExcludedRestaurant(restaurant, need));
     return eligible.length >= 3 ? eligible : notExcluded;
@@ -439,6 +493,10 @@ function createToolRuntime({ restaurants, userProfile, ragRuntime, memoryRuntime
     ].join(" ");
     return avoidIngredients.some((word) => {
       if (word === "辣") return isHeavySpicyDish(dish);
+      if (word === "肉") return /肉|鸡|鸭|鱼|虾|排骨|肥肠|鸡翅|鸡腿|鸡胸|鸡丝|鱼片/.test(terms);
+      if (word === "蛋") return /蛋/.test(terms);
+      if (word === "海鲜") return /海鲜|虾|鱼|甲壳/.test(terms);
+      if (word === "鱼类") return /鱼/.test(terms);
       return terms.includes(word);
     });
   }

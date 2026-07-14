@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Markdown 预览样式测试</title>
+  <style>
+    :root {
+      --page: #f6f7f9;
+      --paper: #ffffff;
+      --text: #1f2328;
+      --muted: #57606a;
+      --border: #d8dee4;
+      --soft: #f1f3f5;
+      --code: #f6f8fa;
+      --accent: #0969da;
+      --quote: #eef6ff;
+      --quote-line: #54aeff;
+      --success: #1a7f37;
+      --warning: #9a6700;
+      --danger: #cf222e;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--page);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      font-size: 16px;
+      line-height: 1.75;
+    }
+
+    main {
+      width: min(920px, calc(100% - 32px));
+      margin: 32px auto;
+      padding: 40px;
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: 0 16px 40px rgba(31, 35, 40, 0.08);
+    }
+
+    h1,
+    h2,
+    h3,
+    h4 {
+      margin: 0 0 16px;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      padding-bottom: 18px;
+      margin-bottom: 28px;
+      border-bottom: 1px solid var(--border);
+      font-size: 36px;
+      font-weight: 760;
+    }
+
+    h2 {
+      margin-top: 36px;
+      padding-top: 8px;
+      font-size: 26px;
+      font-weight: 720;
+    }
+
+    h3 {
+      margin-top: 26px;
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    h4 {
+      margin-top: 20px;
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    p {
+      margin: 0 0 18px;
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(9, 105, 218, 0.28);
+    }
+
+    a:hover {
+      border-bottom-color: var(--accent);
+    }
+
+    code {
+      padding: 0.16em 0.38em;
+      border-radius: 6px;
+      background: var(--code);
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 0.92em;
+    }
+
+    pre {
+      position: relative;
+      margin: 18px 0 24px;
+      padding: 18px 20px;
+      overflow-x: auto;
+      background: var(--code);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+    }
+
+    pre code {
+      display: block;
+      padding: 0;
+      background: transparent;
+      border-radius: 0;
+      color: #24292f;
+      font-size: 14px;
+      line-height: 1.65;
+      white-space: pre;
+    }
+
+    blockquote {
+      margin: 18px 0 24px;
+      padding: 16px 18px;
+      background: var(--quote);
+      border-left: 4px solid var(--quote-line);
+      border-radius: 8px;
+      color: #24292f;
+    }
+
+    blockquote p:last-child {
+      margin-bottom: 0;
+    }
+
+    ul,
+    ol {
+      margin: 0 0 22px;
+      padding-left: 28px;
+    }
+
+    li {
+      margin: 7px 0;
+    }
+
+    table {
+      width: 100%;
+      margin: 18px 0 26px;
+      border-collapse: collapse;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 15px;
+    }
+
+    th,
+    td {
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--soft);
+      font-weight: 700;
+    }
+
+    tr:nth-child(even) td {
+      background: #fbfcfd;
+    }
+
+    hr {
+      height: 1px;
+      margin: 32px 0;
+      border: 0;
+      background: var(--border);
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .checklist {
+      list-style: none;
+      padding-left: 0;
+    }
+
+    .checklist li {
+      display: flex;
+      gap: 10px;
+      align-items: baseline;
+    }
+
+    .mark {
+      display: inline-flex;
+      width: 20px;
+      color: var(--muted);
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    .done .mark {
+      color: var(--success);
+    }
+
+    @media (max-width: 640px) {
+      main {
+        width: 100%;
+        margin: 0;
+        padding: 24px 20px;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+      }
+
+      h1 {
+        font-size: 30px;
+      }
+
+      h2 {
+        font-size: 23px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Markdown 预览样式测试</h1>
+
+    <p class="meta">测试日期：2026-07-10</p>
+
+    <p>测试目的：用同一份内容对比 Codex 右侧 <code>.md</code> 预览和同名 <code>.html</code> 预览的显示差异，重点观察标题层级、代码块灰底、引用块、表格、列表、行内代码和提示块。</p>
+
+    <h2>1. 标题层级</h2>
+
+    <h3>三级标题</h3>
+
+    <h4>四级标题</h4>
+
+    <p>这是一段普通正文。理想状态下，正文应该和标题有清晰的字号、字重、行距差异。中文段落应该有舒适的阅读宽度，英文和数字如 <code>http://127.0.0.1:5177/</code> 不应挤在一起。</p>
+
+    <h2>2. 行内样式</h2>
+
+    <p>这是 <strong>加粗文本</strong>、<em>斜体文本</em>、<code>行内代码</code>、<a href="https://developers.openai.com/codex/app/settings">链接文本</a> 的混合段落。</p>
+
+    <p>可以观察：</p>
+
+    <ul>
+      <li>加粗是否明显</li>
+      <li>行内代码是否有浅灰背景</li>
+      <li>链接是否有颜色区分</li>
+      <li>列表缩进是否自然</li>
+    </ul>
+
+    <h2>3. 引用块</h2>
+
+    <blockquote>
+      <p>这是一个引用块。理想状态下，引用块应该有左侧边线或浅灰背景，用来和普通正文区分。</p>
+      <p>第二段引用文本，用来观察多段引用的行距和边距。</p>
+    </blockquote>
+
+    <h2>4. 代码块</h2>
+
+    <pre><code>npm install
+npm start
+PORT=5176 npm start</code></pre>
+
+    <pre><code>function summarizeResult(cases) {
+  const passed = cases.filter((item) =&gt; item.status === "pass").length;
+  const failed = cases.length - passed;
+
+  return {
+    total: cases.length,
+    passed,
+    failed,
+    passRate: `${Math.round((passed / cases.length) * 100)}%`,
+  };
+}</code></pre>
+
+    <pre><code>{
+  "model": "deepseek-v4-flash",
+  "endpoint": "/api/llm-review",
+  "temperature": 0.2,
+  "maxRounds": 3
+}</code></pre>
+
+    <h2>5. 表格</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th>场景</th>
+          <th>结果</th>
+          <th>单轮耗时</th>
+          <th>备注</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>用户改口</td>
+          <td>通过</td>
+          <td>12.4s</td>
+          <td>保留旧约束</td>
+        </tr>
+        <tr>
+          <td>多人点餐</td>
+          <td>部分通过</td>
+          <td>18.9s</td>
+          <td>需要拆分参与者</td>
+        </tr>
+        <tr>
+          <td>换一批推荐</td>
+          <td>失败</td>
+          <td>22.1s</td>
+          <td>重复推荐过多</td>
+        </tr>
+        <tr>
+          <td>硬约束过滤</td>
+          <td>通过</td>
+          <td>9.8s</td>
+          <td>结果稳定</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>6. 任务清单</h2>
+
+    <ul class="checklist">
+      <li class="done"><span class="mark">[x]</span><span>生成 Markdown 文件</span></li>
+      <li class="done"><span class="mark">[x]</span><span>生成同名 HTML 文件</span></li>
+      <li><span class="mark">[ ]</span><span>在 Codex 右侧预览 Markdown</span></li>
+      <li><span class="mark">[ ]</span><span>在浏览器或侧边栏打开 HTML</span></li>
+      <li><span class="mark">[ ]</span><span>对比灰底、边距、字体层级</span></li>
+    </ul>
+
+    <h2>7. 分隔线</h2>
+
+    <hr>
+
+    <h2>8. 提示块模拟</h2>
+
+    <blockquote>
+      <p>注意：标准 Markdown 没有内建的“提示块”语义。不同渲染器可能只把它当普通引用块，因此灰底、图标、边框不一定一致。</p>
+    </blockquote>
+
+    <h2>9. 长段落</h2>
+
+    <p>这是一段较长的中文说明，用来观察右侧预览器是否能保持清晰的阅读节奏。一个好的文档预览应该避免所有内容都贴在白底上没有层次，也应该让代码块、引用块、表格和普通段落之间有足够的视觉差异。如果 <code>.md</code> 预览器的样式缺失，通常会看到所有模块都变成接近白底，只剩文字本身。</p>
+  </main>
+</body>
+</html>

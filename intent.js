@@ -117,6 +117,7 @@ function createIntentRouter() {
       rawText: query,
       mealGoal: detectMealGoal(query),
       budget: budgetMatch ? Number(budgetMatch[1] || budgetMatch[2]) : null,
+      budgetScope: extractBudgetScope(query),
       maxDeliveryMinutes: timeMatch ? Number(timeMatch[1]) : null,
       tasteGoals,
       avoidIngredients,
@@ -193,7 +194,7 @@ function createIntentRouter() {
 
   function getMissingSlots(schema, slots, query) {
     if (schema.name === "order_recommendation") {
-      const vague = query.length <= 8 || /随便|都行|不知道|推荐/.test(query);
+      const vague = query.length <= 8 || /随便(?:吃|点|来)?|吃什么都行|什么都行|口味都行|不知道吃什么/.test(query);
       if (!vague) return [];
       return ["budget", "maxDeliveryMinutes"].filter((slot) => !slots[slot]);
     }
@@ -239,14 +240,31 @@ function createIntentRouter() {
   };
 }
 
+function extractBudgetScope(query) {
+  if (/人均|每人|每个人|一人一共|按人(?:头)?算|一个[^，。；]{0,10}预算/.test(query)) return "per_person";
+  if (/总预算|合计|总共|一共|全部加起来/.test(query)) return "total";
+  return "unknown";
+}
+
 function extractAvoidIngredients(query) {
-    const avoid = [];
-    ["香菜", "花生", "海鲜", "辣", "太油", "甜", "肥肉", "牛肉", "猪肉", "鸡蛋"].forEach((word) => {
-    if (query.includes(`不要${word}`) || query.includes(`不吃${word}`) || query.includes(`别${word}`) || query.includes(`不${word}`) || query.includes(`${word}过敏`)) {
-      avoid.push(word);
-    }
+  const avoid = [];
+  const ingredients = ["香菜", "花生", "海鲜", "甲壳类", "鱼类", "辣", "油腻", "甜", "肥肉", "羊肉", "牛肉", "猪肉", "鸡肉", "鸡蛋", "蛋", "肉"];
+  ingredients.forEach((word) => {
+    const directAvoid = new RegExp(`(?:不要|不吃|别吃|不能吃|完全不吃|避开|去掉)[^，。；]{0,4}${word}`).test(query);
+    const allergyList = /过敏/.test(query) && new RegExp(`${word}(?:和|、|以及|还有)?[^，。；]{0,8}过敏|对[^，。；]{0,12}${word}`).test(query);
+    if (directAvoid || allergyList) avoid.push(word === "油腻" ? "太油" : word);
   });
-  return avoid;
+  if (/不辣|不要辣|别辣|不吃辣|不能吃辣|完全不吃辣/.test(query)) avoid.push("辣");
+  if (/严格素食|纯素|全素/.test(query)) avoid.push("肉", "蛋", "海鲜", "鱼类");
+  if (/不要肉也不要蛋|不吃肉.*不吃蛋|无肉无蛋/.test(query)) avoid.push("肉", "蛋");
+  return normalizeAvoidIngredients(avoid, query);
+}
+
+function normalizeAvoidIngredients(items, rawText = "") {
+  const normalized = [...new Set((items || []).map((item) => item === "鸡蛋" ? "蛋" : item).filter(Boolean))];
+  const hasExplicitGenericMeatAvoid = /(?:不要|不吃|不能吃|避开)(?:所有|任何|全部)?肉(?:类)?|无肉|严格素食|纯素|全素/.test(rawText);
+  const hasSpecificMeatAvoid = normalized.some((item) => ["羊肉", "牛肉", "猪肉", "鸡肉", "鱼类", "海鲜"].includes(item));
+  return normalized.filter((item) => item !== "肉" || hasExplicitGenericMeatAvoid || !hasSpecificMeatAvoid);
 }
 
 function extractTasteGoals(query) {
@@ -316,6 +334,12 @@ function extractDishName(query) {
 }
 
 function extractPeopleCount(query) {
+  if (/两大一小/.test(query)) return 3;
+  const familyMatch = query.match(/一家([一二两三四五六七八九十\d])口/);
+  if (familyMatch) {
+    const familyNumberMap = { 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
+    return Number(familyMatch[1]) || familyNumberMap[familyMatch[1]] || 1;
+  }
   const numberMatch = query.match(/(\d+)\s*(个人|人|位)/);
   if (numberMatch) return Number(numberMatch[1]);
   const chineseNumberMap = {
@@ -344,7 +368,7 @@ function extractMemory(query, avoidIngredients, tasteGoals) {
   }
 
   if (/过敏/.test(query)) {
-    const value = avoidIngredients[0] || query.replace(/我|对|过敏|记住/g, "").trim();
+    const value = avoidIngredients.length ? avoidIngredients.join("、") : query.replace(/我|对|过敏|记住/g, "").trim();
     return { type: "allergy", value, sensitivity: "sensitive" };
   }
 
@@ -393,7 +417,7 @@ function extractConstraints(query, avoidIngredients, tasteGoals, healthGoal) {
   avoidIngredients.forEach((item) => constraints.push(`不吃${item}`));
   tasteGoals.forEach((item) => constraints.push(item));
   if (healthGoal) constraints.push(healthGoal);
-  if (/一个.*一个|分别/.test(query)) constraints.push("多人差异化需求");
+  if (/一个.*一个|分别|另一个|孩子.*成人|两大一小/.test(query)) constraints.push("多人差异化需求");
   return constraints;
 }
 

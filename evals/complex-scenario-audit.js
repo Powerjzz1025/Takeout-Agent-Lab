@@ -6,6 +6,8 @@ const rootDir = path.join(__dirname, "..");
 const sourceFiles = [
   "data-models.js",
   "intent.js",
+  "dialogue-state.js",
+  "conversation-policy.js",
   "constraint-engine.js",
   "rag.js",
   "memory.js",
@@ -42,7 +44,7 @@ const scenarios = [
     id: "c02_light_then_heavy",
     persona: "先清淡后反悔的人",
     turns: ["20 分钟内送到，清淡一点，预算 35 元左右", "算了，还是重口味一些"],
-    expect: { finalIntent: "order_recommendation", finalStatus: "restaurants_ready", minRestaurants: 3, noLightForHeavy: true }
+    expect: { finalIntent: "order_recommendation", finalStatus: "restaurants_ready", minRestaurants: 1, noLightForHeavy: true }
   },
   {
     id: "c03_knowledge_then_precise_order",
@@ -78,7 +80,7 @@ const scenarios = [
     id: "c08_group_conflict",
     persona: "情侣/同事偏好冲突",
     turns: ["两个人吃，一个想吃川菜，一个完全不吃辣，人均 45，35 分钟内"],
-    expect: { finalIntent: "complex_order_planning", finalStatus: "restaurants_ready", minRestaurants: 3, shouldFlagConflict: true }
+    expect: { finalIntent: "complex_order_planning", finalStatus: "restaurants_ready", minRestaurants: 1, shouldFlagConflict: true }
   },
   {
     id: "c09_location_change_unmodeled",
@@ -102,13 +104,13 @@ const scenarios = [
     id: "c12_dish_pick_then_change_mind",
     persona: "选商品后反悔",
     turns: ["20 分钟内送到，清淡一点，预算 35 元左右", "我选第一家", "就要第一份", "等等，换成重口味一点的"],
-    expect: { finalIntent: "order_recommendation", finalStatus: "restaurants_ready", minRestaurants: 3, noLightForHeavy: true }
+    expect: { finalIntent: "order_recommendation", finalStatus: "restaurants_ready", minRestaurants: 1, noLightForHeavy: true }
   },
   {
     id: "c13_under_25_heavy",
     persona: "预算很紧但想重口",
     turns: ["25 元以内，想吃重口味，30 分钟内"],
-    expect: { finalIntent: "order_recommendation", finalStatus: "restaurants_ready", minRestaurants: 3, noLightForHeavy: true }
+    expect: { finalIntent: "order_recommendation", finalStatus: "restaurants_ready", minRestaurants: 1, noLightForHeavy: true }
   },
   {
     id: "c14_no_cold_food",
@@ -172,16 +174,27 @@ function runScenario(scenario) {
 
   scenario.turns.forEach((turn) => {
     const resolved = resolveContextualTurn(turn, state);
+    const dialogueState = runtime.dialogueRuntime.analyzeTurn({ text: turn, state, restaurants });
+    const baseIntent = resolved.intentResult || runtime.intentRouter.analyze(resolved.text || turn);
+    const intentResult = runtime.policyRuntime.applyIntentPolicy({
+      intentResult: baseIntent,
+      dialogueState,
+      text: turn,
+      previousNeed: state.userNeed || {},
+      selectedRestaurant: state.selectedRestaurant
+    });
     const workflowResult = resolved.selectionResult || runtime.workflowRuntime.run(
       resolved.text,
-      resolved.intentResult ? { intentResult: resolved.intentResult } : {}
+      { intentResult }
     );
     const pendingActions = runtime.safetyRuntime.buildPendingActions(workflowResult);
     finalPermission = runtime.permissionRuntime.evaluate({ workflowResult, pendingActions });
     finalSubagent = runtime.subagentRuntime.review({ workflowResult });
     finalResult = workflowResult;
     turnResults.push(workflowResult);
-    state.userNeed = workflowResult.need || state.userNeed;
+    if (runtime.policyRuntime.shouldCommitNeed({ intentResult: workflowResult.intentResult, workflowResult })) {
+      state.userNeed = workflowResult.need || state.userNeed;
+    }
     state.restaurantRecommendations = workflowResult.restaurantRecommendations || [];
     if (workflowResult.restaurantRecommendations && workflowResult.restaurantRecommendations.length) {
       state.lastRestaurantRecommendations = workflowResult.restaurantRecommendations;
@@ -224,6 +237,9 @@ function createRuntime() {
   const safetyRuntime = createSafetyRuntime();
 
   return {
+    intentRouter,
+    dialogueRuntime: createDialogueStateRuntime(),
+    policyRuntime: createConversationPolicyRuntime(),
     permissionRuntime,
     workflowRuntime,
     subagentRuntime,

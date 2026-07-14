@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const {
   AGENT_REVIEW_SCHEMA,
+  buildDefaultSystemPrompt,
   buildAgentReviewPrompt,
   buildFallbackReview
 } = require("./prompt");
@@ -31,6 +32,8 @@ const LLM_BASE_URL = process.env.LLM_BASE_URL || (
   LLM_PROVIDER === "deepseek" ? "https://api.deepseek.com" : "https://api.openai.com/v1"
 );
 const serverIntentRouter = createIntentRouter();
+const developerConfigPath = path.join(rootDir, "data", "developer-config.json");
+let developerConfig = loadDeveloperConfig();
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -49,6 +52,35 @@ const server = http.createServer(async (req, res) => {
         llmConfigured: Boolean(LLM_API_KEY),
         model: LLM_MODEL
       });
+      return;
+    }
+
+    if (req.method === "GET" && req.url === "/api/developer-config") {
+      sendJson(res, 200, getPublicDeveloperConfig());
+      return;
+    }
+
+    if (req.method === "PUT" && req.url === "/api/developer-config") {
+      assertLocalDeveloperRequest(req);
+      const body = await readJson(req);
+      const override = validatePromptOverride(body.override);
+      developerConfig = {
+        override,
+        updatedAt: new Date().toISOString()
+      };
+      persistDeveloperConfig();
+      sendJson(res, 200, getPublicDeveloperConfig());
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/api/developer-config/reset") {
+      assertLocalDeveloperRequest(req);
+      developerConfig = {
+        override: "",
+        updatedAt: new Date().toISOString()
+      };
+      persistDeveloperConfig();
+      sendJson(res, 200, getPublicDeveloperConfig());
       return;
     }
 
@@ -92,9 +124,29 @@ async function reviewWithModel(body) {
   };
   const requestBody = {
     ...body,
-    modelRuntime
+    modelRuntime,
+    systemPromptOverride: developerConfig.override
   };
   const fallback = buildFallbackReview(requestBody);
+
+  if (shouldUseStructuredReply(requestBody)) {
+    const review = applyStructuredRecommendationReply({
+      summary: "已基于 Workflow 和工具结果生成结构化回复。",
+      improvedReply: "",
+      decisionNotes: ["餐厅、商品、无结果和追问场景使用确定性渲染，避免模型改写事实。"],
+      risks: [],
+      nextBestAction: "show_recommendation",
+      replySource: "structured_renderer",
+      parseStatus: "not_applicable"
+    }, requestBody);
+    return {
+      mode: "structured",
+      enabled: false,
+      provider: LLM_PROVIDER,
+      model: LLM_MODEL,
+      review
+    };
+  }
 
   if (!LLM_API_KEY) {
     return {
@@ -111,6 +163,20 @@ async function reviewWithModel(body) {
   }
 
   return reviewWithOpenAIResponses(requestBody, fallback);
+}
+
+function shouldUseStructuredReply(body) {
+  const status = body && body.agentState && body.agentState.workflowState
+    ? body.agentState.workflowState.status
+    : "";
+  return [
+    "restaurants_ready",
+    "dishes_ready",
+    "dish_selected",
+    "no_match",
+    "needs_clarification",
+    "memory_write_pending"
+  ].includes(status);
 }
 
 async function parseIntentWithModel(body) {
@@ -146,6 +212,7 @@ async function parseIntentWithOpenAIResponses(body, fallback) {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${LLM_API_KEY}`
     },
+    signal: AbortSignal.timeout(12000),
     body: JSON.stringify({
       model: LLM_MODEL,
       input: [
@@ -197,6 +264,7 @@ async function parseIntentWithDeepSeekChat(body, fallback) {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${LLM_API_KEY}`
     },
+    signal: AbortSignal.timeout(12000),
     body: JSON.stringify({
       model: LLM_MODEL,
       messages: [
@@ -265,6 +333,7 @@ async function reviewWithOpenAIResponses(body, fallback) {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${LLM_API_KEY}`
     },
+    signal: AbortSignal.timeout(12000),
     body: JSON.stringify({
       model: LLM_MODEL,
       input: [
@@ -326,6 +395,7 @@ async function reviewWithDeepSeekChat(body, fallback) {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${LLM_API_KEY}`
     },
+    signal: AbortSignal.timeout(12000),
     body: JSON.stringify({
       model: LLM_MODEL,
       messages: [
@@ -388,7 +458,7 @@ function extractOutputText(data) {
 
 function safeParseReview(text, fallback) {
   try {
-    const parsed = JSON.parse(text);
+    const parsed = JSON.parse(extractJsonObject(text));
     return {
       summary: parsed.summary || fallback.summary,
       improvedReply: parsed.improvedReply || fallback.improvedReply,
@@ -396,14 +466,27 @@ function safeParseReview(text, fallback) {
         Array.isArray(parsed.decisionNotes) ? parsed.decisionNotes : fallback.decisionNotes
       ),
       risks: Array.isArray(parsed.risks) ? parsed.risks : fallback.risks,
-      nextBestAction: normalizeNextBestAction(parsed.nextBestAction || fallback.nextBestAction)
+      nextBestAction: normalizeNextBestAction(parsed.nextBestAction || fallback.nextBestAction),
+      replySource: "llm",
+      parseStatus: "success"
     };
   } catch {
     return {
       ...fallback,
-      decisionNotes: [...fallback.decisionNotes, "真实模型返回未能解析为结构化 JSON"]
+      decisionNotes: [...fallback.decisionNotes, "真实模型返回未能解析为结构化 JSON"],
+      replySource: "fallback",
+      parseStatus: "failed"
     };
   }
+}
+
+function extractJsonObject(text) {
+  const trimmed = String(text || "").trim();
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) return trimmed;
+  const start = trimmed.indexOf("{");
+  const end = trimmed.lastIndexOf("}");
+  if (start >= 0 && end > start) return trimmed.slice(start, end + 1);
+  return trimmed;
 }
 
 function sanitizeDecisionNotes(notes) {
@@ -472,7 +555,8 @@ function applyStructuredRecommendationReply(review, body) {
       ...review,
       improvedReply: buildDishSelectionReply(dishes[0], state),
       displayPayload: buildDishSelectionDisplayPayload(dishes[0], state),
-      nextBestAction: "show_recommendation"
+      nextBestAction: "show_recommendation",
+      replySource: "structured_renderer"
     };
   }
 
@@ -480,29 +564,59 @@ function applyStructuredRecommendationReply(review, body) {
     return {
       ...review,
       improvedReply: buildDishReply(dishes),
-      displayPayload: buildDishDisplayPayload(dishes),
-      nextBestAction: "show_recommendation"
+      displayPayload: buildDishDisplayPayload(dishes, state),
+      nextBestAction: "show_recommendation",
+      replySource: "structured_renderer"
     };
   }
 
   if (restaurants.length) {
     return {
       ...review,
-      improvedReply: buildRestaurantReply(restaurants),
-      displayPayload: buildRestaurantDisplayPayload(restaurants),
-      nextBestAction: "show_recommendation"
+      improvedReply: buildRestaurantReply(restaurants, state),
+      displayPayload: buildRestaurantDisplayPayload(restaurants, state),
+      nextBestAction: "show_recommendation",
+      replySource: "structured_renderer"
     };
   }
 
-  if (workflowStatus === "no_match" && state.need && state.need.excludedRestaurantNames && state.need.excludedRestaurantNames.length) {
+  if (workflowStatus === "no_match") {
     return {
       ...review,
-      improvedReply: buildAlternativeNoMatchReply(state),
-      nextBestAction: "ask_clarification"
+      improvedReply: buildNoMatchReply(state),
+      nextBestAction: "ask_clarification",
+      replySource: "structured_renderer"
+    };
+  }
+
+  if (workflowStatus === "needs_clarification") {
+    return {
+      ...review,
+      improvedReply: state.workflowState && state.workflowState.clarificationQuestion
+        ? state.workflowState.clarificationQuestion
+        : "我还缺少一个会影响推荐结果的关键信息，请再补充一下。",
+      nextBestAction: "ask_clarification",
+      replySource: "structured_renderer"
     };
   }
 
   return review;
+}
+
+function buildNoMatchReply(state) {
+  const need = state.need || {};
+  const excluded = need.excludedRestaurantNames || [];
+  if (excluded.length) return buildAlternativeNoMatchReply(state);
+  const constraints = [];
+  if (need.maxDeliveryMinutes) constraints.push(`${need.maxDeliveryMinutes} 分钟${need.deliveryTimeStrict ? "内" : "左右"}`);
+  if (need.budget) constraints.push(`预算 ${need.budget} 元${need.budgetStrict ? "以内" : "左右"}`);
+  if (need.tasteGoals && need.tasteGoals.length) constraints.push(`口味 ${need.tasteGoals.join("、")}`);
+  if (need.avoidIngredients && need.avoidIngredients.length) constraints.push(`避开 ${need.avoidIngredients.join("、")}`);
+  return [
+    "暂时没有符合全部条件的结果",
+    `当前没有餐厅或商品能同时满足：${constraints.join("、") || "你的当前要求"}。`,
+    "我不会补造工具没有返回的餐厅或商品。你可以放宽一个条件，我再重新筛选。"
+  ].join("\n");
 }
 
 function buildAlternativeNoMatchReply(state) {
@@ -517,7 +631,7 @@ function buildAlternativeNoMatchReply(state) {
   return [
     "暂时没有更多符合条件的餐厅",
     `我已经排除了你刚才不想看的餐厅：${excluded.join("、")}。`,
-    `在当前 Mock 商家数据里，剩余餐厅没有同时满足${constraints.join("、") || "你的上一轮条件"}的候选。`,
+    `在当前可选餐厅中，剩余餐厅没有同时满足${constraints.join("、") || "你的上一轮条件"}的候选。`,
     "你可以放宽一个条件，比如配送时间、口味方向或预算，我再重新筛一批。"
   ].join("\n");
 }
@@ -536,16 +650,19 @@ function buildDishSelectionReply(selection, state) {
   lines.push(`售价 ${dish.price || "-"} 元；规格：${dish.spec || "默认规格"}；月售 ${dish.monthlySales || "-"} 份`);
   if (dish.description) lines.push(`描述：${dish.description}`);
   lines.push(`延续需求：${needParts.join("，") || "沿用上一轮点餐需求"}`);
-  lines.push("当前 Demo 不提供购物车、真实下单和支付。你可以继续换商品、换店，或补充新的口味约束。");
+  lines.push("已记录你的选择。你可以继续换商品、换店，或补充新的口味要求。");
   return lines.join("\n");
 }
 
-function buildRestaurantReply(restaurants) {
+function buildRestaurantReply(restaurants, state = {}) {
   const lines = ["推荐餐厅"];
+  if (state.planningResult && state.planningResult.budgetSummary) {
+    lines.push(state.planningResult.budgetSummary);
+  }
   restaurants.slice(0, 3).forEach((restaurant, index) => {
     lines.push(`${index + 1}. ${restaurant.name}`);
     lines.push(`配送约 ${restaurant.deliveryMinutes} 分钟；距离约 ${restaurant.distanceKm}km；月售 ${restaurant.monthlySales} 单`);
-    lines.push(`核心餐品：${(restaurant.coreItems || []).join("、")}`);
+    lines.push(`核心餐品：${(restaurant.displayCoreItems || restaurant.coreItems || []).join("、")}`);
     lines.push(`匹配原因：${(restaurant.matchReasons || []).join("、") || "综合匹配当前需求"}`);
   });
   lines.push("请告诉我选第几家，或者直接输入店名，我再推荐这家店里最合适的 5 个商品。");
@@ -566,7 +683,8 @@ function buildDishReply(dishes) {
   return lines.join("\n");
 }
 
-function buildRestaurantDisplayPayload(restaurants) {
+function buildRestaurantDisplayPayload(restaurants, state = {}) {
+  const sideEffectText = (state.sideEffectNotes || []).join(" ");
   return {
     type: "restaurants",
     title: "推荐餐厅",
@@ -582,7 +700,7 @@ function buildRestaurantDisplayPayload(restaurants) {
       sections: [
         {
           label: "核心餐品",
-          value: (restaurant.coreItems || []).join("、")
+          value: (restaurant.displayCoreItems || restaurant.coreItems || []).join("、")
         },
         {
           label: "匹配原因",
@@ -590,11 +708,15 @@ function buildRestaurantDisplayPayload(restaurants) {
         }
       ]
     })),
-    footer: "请告诉我选第几家，或者直接输入店名，我再推荐这家店里最合适的 5 个商品。"
+    footer: [
+      state.planningResult && state.planningResult.budgetSummary ? `${state.planningResult.budgetSummary}。` : "",
+      sideEffectText,
+      "请告诉我选第几家，或者直接输入店名，我再推荐这家店里最合适的 5 个商品。"
+    ].filter(Boolean).join(" ")
   };
 }
 
-function buildDishDisplayPayload(dishes) {
+function buildDishDisplayPayload(dishes, state = {}) {
   const restaurantName = dishes[0] && dishes[0].restaurant ? dishes[0].restaurant.name : "这家店";
   return {
     type: "dishes",
@@ -618,7 +740,11 @@ function buildDishDisplayPayload(dishes) {
         ]
       };
     }),
-    footer: "你可以告诉我想选哪一个，或者继续补充口味、预算、忌口要求。"
+    footer: [
+      ...(state.sideEffectNotes || []),
+      dishes.length < 5 ? `该店当前只有 ${dishes.length} 个商品满足全部条件，没有为了凑数加入不符合项。` : "",
+      "你可以选择一个，或继续补充口味、预算和忌口要求。"
+    ].filter(Boolean).join(" ")
   };
 }
 
@@ -660,8 +786,53 @@ function buildDishSelectionDisplayPayload(selection, state) {
         ]
       }
     ],
-    footer: "当前 Demo 不提供购物车、真实下单和支付。你可以继续换商品、换店，或补充新的口味约束。"
+    footer: "已记录你的选择。你可以继续换商品、换店，或补充新的口味要求。"
   };
+}
+
+function loadDeveloperConfig() {
+  try {
+    if (!fs.existsSync(developerConfigPath)) return { override: "", updatedAt: null };
+    const parsed = JSON.parse(fs.readFileSync(developerConfigPath, "utf8"));
+    return {
+      override: typeof parsed.override === "string" ? parsed.override : "",
+      updatedAt: parsed.updatedAt || null
+    };
+  } catch (error) {
+    console.warn(`Developer config could not be loaded: ${error.message}`);
+    return { override: "", updatedAt: null };
+  }
+}
+
+function persistDeveloperConfig() {
+  fs.writeFileSync(developerConfigPath, `${JSON.stringify(developerConfig, null, 2)}\n`, "utf8");
+}
+
+function getPublicDeveloperConfig() {
+  return {
+    override: developerConfig.override,
+    updatedAt: developerConfig.updatedAt,
+    defaultPrompt: buildDefaultSystemPrompt({
+      provider: LLM_PROVIDER,
+      model: LLM_MODEL
+    }),
+    model: LLM_MODEL,
+    provider: LLM_PROVIDER
+  };
+}
+
+function validatePromptOverride(value) {
+  if (typeof value !== "string") throw new Error("Prompt override must be a string");
+  const normalized = value.trim();
+  if (normalized.length > 20_000) throw new Error("Prompt override exceeds 20000 characters");
+  return normalized;
+}
+
+function assertLocalDeveloperRequest(req) {
+  const address = req.socket && req.socket.remoteAddress ? req.socket.remoteAddress : "";
+  if (!["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(address)) {
+    throw new Error("Developer configuration can only be changed from localhost");
+  }
 }
 
 function serveStatic(req, res) {

@@ -6,6 +6,8 @@ const rootDir = path.join(__dirname, "..");
 const sourceFiles = [
   "data-models.js",
   "intent.js",
+  "dialogue-state.js",
+  "conversation-policy.js",
   "constraint-engine.js",
   "rag.js",
   "memory.js",
@@ -188,12 +190,23 @@ function runScenario(scenario) {
 
   scenario.turns.forEach((turn) => {
     const resolved = resolveContextualTurn(turn, state);
-    const workflowResult = resolved.selectionResult || runtime.workflowRuntime.run(resolved.text);
+    const dialogueState = runtime.dialogueRuntime.analyzeTurn({ text: turn, state, restaurants });
+    const baseIntent = resolved.intentResult || runtime.intentRouter.analyze(resolved.text || turn);
+    const intentResult = runtime.policyRuntime.applyIntentPolicy({
+      intentResult: baseIntent,
+      dialogueState,
+      text: turn,
+      previousNeed: state.userNeed || {},
+      selectedRestaurant: state.selectedRestaurant
+    });
+    const workflowResult = resolved.selectionResult || runtime.workflowRuntime.run(resolved.text || turn, { intentResult });
     const pendingActions = runtime.safetyRuntime.buildPendingActions(workflowResult);
     finalPermission = runtime.permissionRuntime.evaluate({ workflowResult, pendingActions });
     finalSubagent = runtime.subagentRuntime.review({ workflowResult });
     finalResult = workflowResult;
-    state.userNeed = workflowResult.need || state.userNeed;
+    if (runtime.policyRuntime.shouldCommitNeed({ intentResult: workflowResult.intentResult, workflowResult })) {
+      state.userNeed = workflowResult.need || state.userNeed;
+    }
     state.restaurantRecommendations = workflowResult.restaurantRecommendations || [];
     state.dishRecommendations = workflowResult.dishRecommendations || [];
     if (state.dishRecommendations.length) state.selectedRestaurant = state.dishRecommendations[0].restaurant;
@@ -232,6 +245,9 @@ function createRuntime() {
   const safetyRuntime = createSafetyRuntime();
 
   return {
+    intentRouter,
+    dialogueRuntime: createDialogueStateRuntime(),
+    policyRuntime: createConversationPolicyRuntime(),
     permissionRuntime,
     workflowRuntime,
     subagentRuntime,

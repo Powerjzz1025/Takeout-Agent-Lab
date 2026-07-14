@@ -116,15 +116,28 @@ function buildInheritedNeed(text, state, act) {
   const currentHasTaste = hasTasteGoal(text);
   const currentHasAvoid = hasAvoidConstraint(text);
 
-  if (!currentHasBudget && previousNeed.budget) inherited.push(`预算 ${previousNeed.budget} 元左右`);
-  if (!currentHasTime && previousNeed.maxDeliveryMinutes) inherited.push(`${previousNeed.maxDeliveryMinutes} 分钟内`);
+  if (!currentHasBudget && previousNeed.budget) {
+    inherited.push(previousNeed.budgetScope === "per_person"
+      ? `每人预算 ${previousNeed.budget} 元左右`
+      : previousNeed.budgetScope === "total"
+        ? `总预算 ${previousNeed.budget} 元左右`
+        : `预算 ${previousNeed.budget} 元左右`);
+  }
+  if (!currentHasTime && previousNeed.maxDeliveryMinutes) {
+    inherited.push(previousNeed.deliveryTimeStrict
+      ? `${previousNeed.maxDeliveryMinutes} 分钟内（硬性要求）`
+      : `${previousNeed.maxDeliveryMinutes} 分钟左右`);
+  }
   if (!currentHasTaste && previousNeed.tasteGoals && previousNeed.tasteGoals.length) {
     inherited.push(`口味 ${previousNeed.tasteGoals.join("、")}`);
   }
   if (!currentHasAvoid && previousNeed.avoidIngredients && previousNeed.avoidIngredients.length) {
     inherited.push(`避开 ${previousNeed.avoidIngredients.join("、")}`);
   }
-  if (previousNeed.deliveryTimeStrict && !currentHasTime) inherited.push("配送时间为硬性要求");
+  if (previousNeed.peopleCount > 1 && !hasExplicitPeopleCount(text)) {
+    inherited.push(`共 ${previousNeed.peopleCount} 人用餐`);
+    if (previousNeed.rawText) inherited.push(`上一轮多人需求：${previousNeed.rawText}`);
+  }
 
   return [...new Set(inherited)];
 }
@@ -138,15 +151,15 @@ function buildExcludedRestaurantNames(text, state, restaurants, act) {
     if (name && text.includes(name)) names.push(name);
   });
 
-  if (/刚才|刚刚|之前|上面|上一批|这几家|三家|推荐的/.test(text)) {
+  if (/这几家|三家|上一批|推荐的.*以外|完全不同|都不太想|都不想|没感觉/.test(text)) {
     names.push(...getRestaurantNames(state && state.lastRestaurantRecommendations));
   }
 
-  if (/还有没有|还有其他|还有别的|换一批|其他的|别的|除了.*三家|之前推荐|刚才推荐|推荐的.*以外/.test(text)) {
+  if (/还有没有|还有.*吗|还有其他|还有别的|换一批|其他的|别的|完全不同|除了.*三家|之前推荐|刚才推荐|推荐的.*以外/.test(text)) {
     names.push(...((state && state.seenRestaurantNames) || []));
   }
 
-  if (/不想要|不要|不考虑|排除|换掉/.test(text) && state && state.selectedRestaurant) {
+  if (/不想要|不要|不考虑|排除|换掉|换家|换店|刚才那家/.test(text) && state && state.selectedRestaurant) {
     names.push(state.selectedRestaurant.name);
   }
 
@@ -183,6 +196,7 @@ function buildShortTermSummary(state) {
     previousTasteGoals: need.tasteGoals || [],
     previousAvoidIngredients: need.avoidIngredients || [],
     previousBudget: need.budget || null,
+    previousBudgetScope: need.budgetScope || "unknown",
     previousMaxDeliveryMinutes: need.maxDeliveryMinutes || null,
     previousRestaurantNames: getRestaurantNames(state && state.lastRestaurantRecommendations),
     seenRestaurantNames: (state && state.seenRestaurantNames) || [],
@@ -214,7 +228,7 @@ function isAgentIdentityQuestion(text) {
 }
 
 function isAlternativeRestaurantText(text) {
-  return /换一(家|批)|换个(店|餐厅)|还有没有(其他|别的)|还有(其他|别的).*(餐厅|店|推荐)|其他的?(餐厅|店|推荐)|别的(餐厅|店|推荐)|除了.*(刚才|刚刚|之前|推荐|三家|这几家)|不想要.*(餐厅|店|刚才|之前)|不要.*(餐厅|店|刚才|之前)/.test(text);
+  return /换一(家|批)|换家(店|餐厅)?|换店|换个(店|餐厅)|看(看)?别的|其他选择|还有没有(其他|别的)|还有(其他|别的|完全不同)|还有.*(餐厅|店|推荐).*吗|完全不同的?吗|这几家.*(不想|不太想|没感觉|不合适)|还是没感觉|其他的?(餐厅|店|推荐)|别的(餐厅|店|推荐)|除了.*(刚才|刚刚|之前|推荐|三家|这几家)|不想要.*(餐厅|店|刚才|之前)|不要.*(餐厅|店|刚才|之前)|别再给我.*那家/.test(text);
 }
 
 function isRestaurantSelectionText(text, state, restaurants) {
@@ -234,12 +248,14 @@ function isMemoryOnlyText(text) {
 }
 
 function isKnowledgeQuestion(text) {
-  return /怎么点|能不能吃|是不是|区别|热量|减脂|控糖|胃|健康|知识|为什么|适合吃什么/.test(text) && !isOrderRequestText(text);
+  const asksQuestion = /怎么点|能不能吃|是不是|会不会|容易胖|区别|热量|减脂|控糖|胃|健康|知识|为什么|适合吃什么/.test(text);
+  const asksImmediateOrder = /推荐|帮我点|想吃|来一份|安排|找.*餐厅|找.*外卖|算了|改成?|换成/.test(text);
+  return asksQuestion && !asksImmediateOrder;
 }
 
 function shouldInheritForRefinement(text, state) {
   if (!state || !state.userNeed || !state.userNeed.rawText) return false;
-  return /和刚才一样|照旧|还是|继续|换成|改成|算了|不要|别|这次|同样|刚才那种|重口|清淡|辣|热乎|低脂|高蛋白|预算|分钟|严格|必须|以内/.test(text);
+  return /和刚才一样|照旧|还是|继续|换成|改成|算了|错了|纠正|不要|别|这次|同样|刚才那种|重口|清淡|辣|热乎|低脂|高蛋白|预算|总共|合计|一共|人均|每人|每个人|分钟|严格|必须|以内/.test(text);
 }
 
 function isOrderRequestText(text) {
@@ -264,6 +280,10 @@ function hasTasteGoal(text) {
 
 function hasAvoidConstraint(text) {
   return /不要|不吃|别|过敏/.test(text);
+}
+
+function hasExplicitPeopleCount(text) {
+  return /\d+\s*(个人|人|位)|[一二两三四五六七八九十]\s*(个人|人|位)|两大一小|一家[一二两三四五六七八九十\d]口|一家人|团队|同事/.test(text);
 }
 
 function getOrdinalIndexFromText(text) {

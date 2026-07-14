@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>外卖智能点餐 Agent Demo</title>
+    <title>外卖智能点餐助手</title>
     <link rel="stylesheet" href="./styles.css">
   </head>
   <body>
@@ -13,44 +13,12 @@
           <div class="brand-mark">AI</div>
           <div>
             <h1>点餐 Agent</h1>
-            <p>Web Demo · 7.1 架构复盘</p>
+            <p>个性化推荐 · 多轮点餐</p>
           </div>
         </div>
 
-        <section class="progress-section">
-          <h2>模块化进度</h2>
-          <div class="progress-module">
-            <strong>1. 产品骨架</strong>
-            <span>1.1 Web Demo · 1.2 交互界面 · 1.3 餐厅优先链路</span>
-          </div>
-          <div class="progress-module">
-            <strong>2. 数据与记忆</strong>
-            <span>2.1 数据模型 · 2.2 用户画像 · 2.3 RAG 知识库</span>
-          </div>
-          <div class="progress-module">
-            <strong>3. 工具与流程</strong>
-            <span>3.1 Tool Use · 3.2 Workflow · 3.3 Planning · 3.4 Safety</span>
-          </div>
-          <div class="progress-module">
-            <strong>4. 意图与路由</strong>
-            <span>4.1 规则意图 · 4.2 LLM 意图 · 4.3 Dialogue State · 4.4 Skills</span>
-          </div>
-          <div class="progress-module">
-            <strong>5. 模型中枢</strong>
-            <span>5.1 服务端代理 · 5.2 模型供应商 · 5.3 最终回复</span>
-          </div>
-          <div class="progress-module">
-            <strong>6. 稳定性与评测</strong>
-            <span>6.1 标准评测 · 6.2 复杂场景 · 6.3 约束引擎</span>
-          </div>
-          <div class="progress-module active">
-            <strong>7. 架构复盘与优化</strong>
-            <span>7.1 架构图 · 7.2 Multi-intent · 7.3 高德地图</span>
-          </div>
-        </section>
-
         <section class="memory-section">
-          <h2>Demo 用户画像</h2>
+          <h2>个性化画像</h2>
           <div class="memory-chip">用户：张三，32 岁</div>
           <div class="memory-chip">身份：高级产品经理</div>
           <div class="memory-chip">地点：北京中关村 / 常营</div>
@@ -65,7 +33,16 @@
             <p class="eyebrow">外卖智能点餐助手</p>
             <h2>把模糊需求变成可确认的点餐方案</h2>
           </div>
-          <div class="status-pill">7.1 · 架构复盘与产品验收准备</div>
+          <div class="topbar-actions">
+            <label class="address-control" for="addressSelect">
+              <span>配送至</span>
+              <select id="addressSelect" aria-label="切换配送地址"></select>
+            </label>
+            <div class="status-pill">智能推荐已就绪</div>
+            <button id="developerModeButton" class="developer-mode-button" type="button" aria-expanded="false">
+              开发者模式
+            </button>
+          </div>
         </header>
 
         <section class="agent-layout">
@@ -88,52 +65,112 @@
             </form>
           </div>
 
-          <div class="insight-panel" aria-label="Agent 工作台">
-            <section class="run-state">
-              <h3>Agent 工作过程</h3>
-              <div id="agentSteps" class="agent-steps"></div>
-            </section>
-
-            <section class="recommendation-section">
-              <h3>推荐结果</h3>
-              <div id="recommendations" class="recommendations empty">
-                发送一句点餐需求后，这里会出现候选方案。
+          <aside id="developerConsole" class="developer-console" aria-label="Agent 开发者控制台" hidden>
+            <header class="developer-console-header">
+              <div>
+                <p class="eyebrow">可观测与可治理</p>
+                <h3>Agent 开发者模式</h3>
               </div>
-            </section>
+              <button id="closeDeveloperButton" class="icon-button" type="button" aria-label="关闭开发者模式" title="关闭">×</button>
+            </header>
 
-            <section class="skill-section">
-              <h3>本轮 Skills</h3>
-              <div id="skillState" class="skill-state empty">
-                等待用户输入后，这里会展示本轮加载的 Skills。
+            <nav class="developer-tabs" aria-label="开发者工具">
+              <button class="developer-tab active" type="button" data-dev-tab="trace">调用过程</button>
+              <button class="developer-tab" type="button" data-dev-tab="memory">记忆</button>
+              <button class="developer-tab" type="button" data-dev-tab="prompt">Prompt</button>
+              <button class="developer-tab" type="button" data-dev-tab="skills">Skills</button>
+              <button class="developer-tab" type="button" data-dev-tab="data">数据</button>
+            </nav>
+
+            <section class="developer-panel active" data-dev-panel="trace">
+              <div class="panel-heading">
+                <h4>本轮调用时间线</h4>
+                <span>从理解、路由到工具与回复</span>
               </div>
+              <div id="traceTimeline" class="trace-timeline"></div>
+              <details class="developer-details">
+                <summary>查看 Workflow 步骤</summary>
+                <div id="agentSteps" class="agent-steps"></div>
+              </details>
+              <details class="developer-details">
+                <summary>查看模型复核</summary>
+                <div id="llmState" class="llm-state empty">发送需求后，这里会显示模型分析结果。</div>
+              </details>
+              <details class="developer-details">
+                <summary>查看记忆确认动作</summary>
+                <div id="pendingActions" class="pending-actions empty">暂无需要确认的动作。</div>
+              </details>
             </section>
 
-            <section class="llm-section">
-              <h3>大模型复核</h3>
-              <div id="llmState" class="llm-state empty">
-                使用本地服务启动后，这里会显示真实大模型或 mock 复核结果。
+            <section class="developer-panel" data-dev-panel="memory" hidden>
+              <div class="panel-heading">
+                <h4>记忆中心</h4>
+                <span>查看长期记忆及本轮召回情况</span>
               </div>
-            </section>
-
-            <section class="safety-section">
-              <h3>记忆确认</h3>
-              <div id="pendingActions" class="pending-actions empty">
-                暂无需要确认的动作。
+              <div class="developer-toolbar">
+                <input id="memorySearch" type="search" placeholder="搜索记忆内容或来源" aria-label="搜索记忆">
+                <select id="memoryTypeFilter" aria-label="筛选记忆类型"><option value="all">全部类型</option></select>
               </div>
+              <div id="memorySummary" class="data-summary"></div>
+              <div id="memoryList" class="memory-list"></div>
             </section>
 
-            <section class="state-section">
-              <h3>当前数据结构</h3>
-              <div id="statePreview" class="state-preview"></div>
+            <section class="developer-panel" data-dev-panel="prompt" hidden>
+              <div class="panel-heading">
+                <h4>System Prompt</h4>
+                <span>查看默认规则，开发环境可保存覆盖版本</span>
+              </div>
+              <label class="prompt-editor-label" for="systemPromptEditor">当前生效的附加指令</label>
+              <textarea id="systemPromptEditor" class="prompt-editor" rows="14" placeholder="留空表示仅使用代码中的默认 System Prompt"></textarea>
+              <p id="promptStatus" class="developer-status">正在读取配置...</p>
+              <div class="developer-actions">
+                <button id="savePromptButton" type="button">保存并立即生效</button>
+                <button id="restorePromptButton" class="secondary" type="button">恢复默认</button>
+              </div>
+              <details class="developer-details">
+                <summary>查看代码默认 Prompt</summary>
+                <pre id="defaultPromptPreview" class="prompt-preview"></pre>
+              </details>
             </section>
-          </div>
+
+            <section class="developer-panel" data-dev-panel="skills" hidden>
+              <div class="panel-heading">
+                <h4>Skills 注册表</h4>
+                <span>能力定义、触发阶段与本轮加载状态</span>
+              </div>
+              <div id="skillRegistry" class="skill-registry"></div>
+              <details class="developer-details">
+                <summary>查看本轮 Skill 细节</summary>
+                <div id="skillState" class="skill-state empty">等待用户输入后，这里会展示本轮加载的 Skills。</div>
+              </details>
+            </section>
+
+            <section class="developer-panel" data-dev-panel="data" hidden>
+              <div class="panel-heading">
+                <h4>数据概览</h4>
+                <span>只展示受控业务数据，不暴露密钥</span>
+              </div>
+              <div id="dataSummary" class="data-summary"></div>
+              <div id="dataExplorer" class="data-explorer"></div>
+              <details class="developer-details">
+                <summary>查看当前结构化推荐结果</summary>
+                <div id="recommendations" class="recommendations empty">发送一句点餐需求后，这里会出现候选方案。</div>
+              </details>
+              <details class="developer-details">
+                <summary>查看完整运行状态 JSON</summary>
+                <div id="statePreview" class="state-preview"></div>
+              </details>
+            </section>
+          </aside>
         </section>
       </section>
     </main>
 
     <script src="./data-models.js"></script>
     <script src="./intent.js"></script>
+    <script src="./intent-v2.js"></script>
     <script src="./dialogue-state.js"></script>
+    <script src="./conversation-policy.js"></script>
     <script src="./constraint-engine.js"></script>
     <script src="./rag.js"></script>
     <script src="./memory.js"></script>

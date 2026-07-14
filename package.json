@@ -5,7 +5,9 @@
     "eval:free": "node evals/free-scenario-audit.js",
     "eval:complex": "node evals/complex-scenario-audit.js",
     "eval:stability": "node evals/stability-matrix.js",
-    "check": "node --check app.js && node --check server.js && node --check prompt.js && node --check intent.js && node --check dialogue-state.js && node --check constraint-engine.js && node --check workflow.js && node --check llm-intent.js && node --check evals/run-evals.js && node --check evals/free-scenario-audit.js && node --check evals/complex-scenario-audit.js && node --check evals/stability-matrix.js"
+    "eval:bad": "node evals/bad-case-regression.js",
+    "eval:intent-v2": "node evals/intent-system-v2.js",
+    "check": "node --check app.js && node --check server.js && node --check prompt.js && node --check data-models.js && node --check intent.js && node --check intent-v2.js && node --check dialogue-state.js && node --check conversation-policy.js && node --check constraint-engine.js && node --check workflow.js && node --check tools.js && node --check llm-intent.js && node --check evals/run-evals.js && node --check evals/free-scenario-audit.js && node --check evals/complex-scenario-audit.js && node --check evals/stability-matrix.js && node --check evals/bad-case-regression.js && node --check evals/intent-system-v2.js"
   },
   "dependencies": {}
 }
